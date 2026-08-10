@@ -1,0 +1,16 @@
+## Interface: 20506
+## Title: PickItRight
+## Notes: Asistente de mejoras de equipo en tiempo real para TBC Classic.
+## Author: javierdeportela
+## Version: 0.1.0
+## SavedVariables: PickItRightDB
+
+Localization.lua
+SpecDetector.lua
+ItemStatsAnalyzer.lua
+StatScorer.lua
+ItemFilter.lua
+LootIntegration.lua
+UIIntegration.lua
+AddonSettings.lua
+Core.lua
