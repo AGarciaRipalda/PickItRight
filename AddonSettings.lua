@@ -240,8 +240,50 @@ local function HandleContextCommand()
 	end
 end
 
+--[[
+COMANDO DE DIAGNÓSTICO: /pickitright talents
+==============================================
+Agregado tras DOS intentos de fix fallidos para el mismo reporte real
+(0/0/0 puntos, después 54/54/54 -- el total real repetido en las 3
+pestañas, no dividido) -- en vez de arriesgar un tercer intento a ciegas,
+este comando imprime en el chat, pestaña por pestaña, el resultado de
+CADA candidato de API que se probó o se consideró:
+  - GetTalentTabInfo sin grupo
+  - GetTalentTabInfo con el grupo activo como 4º argumento
+  - GetNumTalentPoints(tabIndex) (resultó no ser fiable: en el cliente
+    real del usuario devolvió el total repetido en las 3 pestañas)
+  - la suma de GetTalentInfo(tab, i) por talento individual (el mecanismo
+    que SharpiesGearJudge usa de verdad para GetTalentRank, no el que se
+    usó por error para esta fase)
+Con estos 4 valores lado a lado para un personaje real con distribución
+conocida, se puede identificar con certeza cuál API funciona en vez de
+seguir adivinando y pedir otro ciclo de reload+captura.
+]]
+local function HandleTalentsCommand()
+	local activeGroup = (type(GetActiveTalentGroup) == "function") and GetActiveTalentGroup() or nil
+	Print(("Grupo activo detectado: %s"):format(tostring(activeGroup)))
+
+	for tabIndex = 1, (GetNumTalentTabs() or 0) do
+		local _, tabName = GetTalentTabInfo(tabIndex)
+		local rawNoGroup = select(3, GetTalentTabInfo(tabIndex))
+		local rawWithGroup = select(3, GetTalentTabInfo(tabIndex, nil, nil, activeGroup))
+		local numTalentPoints = (type(GetNumTalentPoints) == "function") and GetNumTalentPoints(tabIndex) or "N/A"
+
+		local summed = 0
+		local numTalents = (type(GetNumTalents) == "function") and (GetNumTalents(tabIndex) or 0) or 0
+		for i = 1, numTalents do
+			local _, _, _, _, rank = GetTalentInfo(tabIndex, i)
+			summed = summed + (tonumber(rank) or 0)
+		end
+
+		Print(("Pestaña %d (%s): sinGrupo=%s conGrupo=%s GetNumTalentPoints=%s sumaTalentos=%d"):format(
+			tabIndex, tostring(tabName), tostring(rawNoGroup), tostring(rawWithGroup),
+			tostring(numTalentPoints), summed))
+	end
+end
+
 local function PrintUsage()
-	Print("/pickitright phase [1-5] | weight <ITEM_MOD_X> <valor|clear> | module <nombre> <on|off> | inspect <shift-click de un ítem> | context")
+	Print("/pickitright phase [1-5] | weight <ITEM_MOD_X> <valor|clear> | module <nombre> <on|off> | inspect <shift-click de un ítem> | context | talents")
 end
 
 SLASH_PICKITRIGHT1 = "/pickitright"
@@ -265,6 +307,8 @@ SlashCmdList["PICKITRIGHT"] = function(msg)
 		HandleInspectCommand(msg)
 	elseif command == "context" then
 		HandleContextCommand()
+	elseif command == "talents" then
+		HandleTalentsCommand()
 	else
 		PrintUsage()
 	end

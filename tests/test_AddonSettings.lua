@@ -173,4 +173,34 @@ assert(sawDominantTab, "context: muestra la pestaña dominante")
 assert(sawPointsByTab, "context: muestra el desglose de puntos por pestaña, no solo la dominante")
 assert(sawActiveGroup, "context: muestra el grupo de spec dual activo (10/44 puntos leídos en el grupo equivocado fue el bug real)")
 
+-- --- Comando /pickitright talents ----------------------------------------
+-- Agregado tras dos fixes fallidos consecutivos (0/0/0, después 54/54/54):
+-- vuelca los 4 candidatos de API lado a lado para diagnosticar con certeza
+-- en vez de adivinar un tercer fix a ciegas.
+
+_G.GetActiveTalentGroup = function() return 2 end
+_G.GetNumTalentTabs = function() return 1 end
+_G.GetTalentTabInfo = function(tabIndex, _, _, group)
+	if group then
+		return "TabName", "icon", 44 -- con grupo: valor real
+	end
+	return "TabName", "icon", 0 -- sin grupo: el bug original
+end
+_G.GetNumTalentPoints = function() return 54 end -- el bug nuevo: total repetido
+_G.GetNumTalents = function() return 2 end
+_G.GetTalentInfo = function(tabIndex, i)
+	local ranks = { 20, 24 } -- suma real: 44
+	return "Talent" .. i, "icon", 1, 1, ranks[i]
+end
+
+printedMessages = {}
+SlashCmdList["PICKITRIGHT"]("talents")
+local sawTalentsLine = false
+for _, msg in ipairs(printedMessages) do
+	if msg:find("sinGrupo=0") and msg:find("conGrupo=44") and msg:find("GetNumTalentPoints=54") and msg:find("sumaTalentos=44") then
+		sawTalentsLine = true
+	end
+end
+assert(sawTalentsLine, "talents: muestra los 4 candidatos de API lado a lado para diagnosticar sin adivinar")
+
 print("OK: AddonSettings.lua supera la prueba de humo")
