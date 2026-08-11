@@ -22,11 +22,147 @@ local function GetItemID(itemString)
 	return itemString and tonumber(itemString:match("item:(%d+)"))
 end
 
--- GetItemStats ya devuelve una tabla plana {ITEM_MOD_X = valor}; esta es la
--- única función que la llama. Nunca tocar el texto del tooltip aquí, ni
--- como fallback: es lento y depende del idioma del cliente.
+--[[
+BONOS "EQUIP: X" — REVIERTE A PROPÓSITO LA REGLA ORIGINAL DE "NUNCA
+PARSEAR TOOLTIP" (documentada desde la Fase 2)
+=====================================================================
+Motivo real, reportado por un jugador: comparando dos ítems de mago
+Frost, el addon marcó "Mejora: +21.6" un cambio que en el tooltip real
+del cliente perdía ~23 Poder con Hechizos y ~14 Crítico de Hechizos.
+Causa verificada: `GetItemStats()` NO expone los bonos que vienen de
+líneas "Equip: Improves/Increases X by Y" del tooltip — son efectos que
+se disparan al equipar (spell adjunto al ítem), no stats crudos del
+ítem, y estructuralmente `GetItemStats` no los ve. Afectaba a los DOS
+ítems del caso reportado, en ambas direcciones (de/hacia el ítem
+equipado), por eso el resultado salió tan mal.
+
+Verificado el mecanismo (no una suposición): SharpiesGearJudge
+(gear-scoring TBC real, instalado localmente) tiene un archivo dedicado
+completo (Parse.lua, ~700 líneas) solo para esto — un scanner de
+tooltip con tabla de términos + patrones regex, porque no hay otra
+forma de ver estos bonos. Lo de acá es la MISMA técnica, con un alcance
+mucho más chico: solo cubre los patrones "Equip: Improves/Increases...
+by [up to] N" (los que motivaron el reporte) y solo mapea a stats que
+StatScorer.lua realmente pondera en algún perfil — no se copió la tabla
+de términos completa de esa fuente (resistencias, stats de mascota,
+"all stats", habilidad de arma por tipo, etc. que ningún perfil de acá
+usa).
+
+LIMITACIONES CONOCIDAS de este enfoque, aceptadas a propósito:
+1. Cliente en inglés únicamente. Los patrones y la tabla de términos de
+   abajo son texto en inglés — en cualquier otro idioma no van a
+   encontrar nada, y AddEquipEffectStats simplemente no suma nada extra
+   (degradación con gracia: el ítem sigue teniendo sus stats crudos de
+   GetItemStats, solo le faltan los bonos de Equip:, igual que antes de
+   este cambio). Es la PRIMERA dependencia de idioma de todo el addon —
+   antes de esto, todo corría por claves numéricas/ITEM_MOD_* que no
+   dependen del idioma del cliente.
+2. Un parche que cambie la redacción de una línea "Equip:" rompe el
+   patrón correspondiente en silencio. No hay forma de detectar esto
+   automáticamente — depende de QA manual/reportes de usuario, igual
+   que como se encontró este bug.
+]]
+
+-- Términos en inglés -> ITEM_MOD_X, acotado a los stats que algún perfil
+-- de WEIGHT_PROFILES (StatScorer.lua) realmente pondera. Agregar una fila
+-- acá SOLO si también hay un peso real para esa clave en algún perfil —
+-- si no, es una regex más que nunca va a cambiar nada.
+local EQUIP_TEXT_TO_STAT = {
+	["hit rating"] = "ITEM_MOD_HIT_RATING_SHORT",
+	["spell hit rating"] = "ITEM_MOD_HIT_SPELL_RATING_SHORT",
+	["chance to hit with spells"] = "ITEM_MOD_HIT_SPELL_RATING_SHORT",
+	["critical strike rating"] = "ITEM_MOD_CRIT_RATING_SHORT",
+	["spell critical strike rating"] = "ITEM_MOD_SPELL_CRIT_RATING_SHORT",
+	["critical hit with spells"] = "ITEM_MOD_SPELL_CRIT_RATING_SHORT",
+	["haste rating"] = "ITEM_MOD_HASTE_RATING_SHORT",
+	["spell haste rating"] = "ITEM_MOD_SPELL_HASTE_RATING_SHORT",
+	["armor penetration rating"] = "ITEM_MOD_ARMOR_PENETRATION_RATING_SHORT",
+	["attack power"] = "ITEM_MOD_ATTACK_POWER_SHORT",
+	["ranged attack power"] = "ITEM_MOD_RANGED_ATTACK_POWER_SHORT",
+	["feral attack power"] = "ITEM_MOD_FERAL_ATTACK_POWER_SHORT",
+	["spell power"] = "ITEM_MOD_SPELL_POWER_SHORT",
+	["spell damage and healing"] = "ITEM_MOD_SPELL_POWER_SHORT",
+	["damage and healing done by magical spells and effects"] = "ITEM_MOD_SPELL_POWER_SHORT",
+	["damage done by magical spells and effects"] = "ITEM_MOD_SPELL_POWER_SHORT",
+	["healing done by spells and effects"] = "ITEM_MOD_SPELL_HEALING_DONE_SHORT",
+	["healing done by magical spells and effects"] = "ITEM_MOD_SPELL_HEALING_DONE_SHORT",
+	["damage done by shadow spells and effects"] = "ITEM_MOD_SHADOW_DAMAGE_SHORT",
+	["damage done by fire spells and effects"] = "ITEM_MOD_FIRE_DAMAGE_SHORT",
+	["damage done by frost spells and effects"] = "ITEM_MOD_FROST_DAMAGE_SHORT",
+	["damage done by arcane spells and effects"] = "ITEM_MOD_ARCANE_DAMAGE_SHORT",
+	["damage done by nature spells and effects"] = "ITEM_MOD_NATURE_DAMAGE_SHORT",
+	["defense rating"] = "ITEM_MOD_DEFENSE_SKILL_RATING_SHORT",
+	["dodge rating"] = "ITEM_MOD_DODGE_RATING_SHORT",
+	["parry rating"] = "ITEM_MOD_PARRY_RATING_SHORT",
+	["block rating"] = "ITEM_MOD_BLOCK_RATING_SHORT",
+	["shield block rating"] = "ITEM_MOD_BLOCK_RATING_SHORT",
+	["resilience rating"] = "ITEM_MOD_RESILIENCE_RATING_SHORT",
+	["mana per 5 sec"] = "ITEM_MOD_MANA_REGENERATION_SHORT",
+}
+
+-- Patrones "Equip: X" en inglés, del más al menos específico (el primero
+-- que matchea gana, no se sigue probando). Mismo repertorio reducido que
+-- SharpiesGearJudge (Parse.lua, MSC.Scanner.EquipPatterns), acotado a
+-- "improves/increases ... by [up to] N" — cubre los dos casos reales que
+-- motivaron esto ("Improves spell critical strike rating by 14" e
+-- "Increases damage and healing done by magical spells and effects by up
+-- to 44").
+local EQUIP_LINE_PATTERNS = {
+	"increases (.-) by up to (%d+)",
+	"increases your (.-) by (%d+)",
+	"increases (.-) by (%d+)",
+	"improves your (.-) by (%d+)",
+	"improves (.-) by (%d+)",
+}
+
+-- Reutiliza siempre el mismo frame (creado una vez, la primera llamada) —
+-- mismo patrón que MSC_ScannerTooltip en SharpiesGearJudge. Crear un
+-- GameTooltip nuevo por ítem desperdiciaría memoria sin ninguna ganancia.
+local scanTooltip
+
+--- Recorre las líneas del tooltip de `itemLink` buscando bonos "Equip:"
+--- que correspondan a algún stat de EQUIP_TEXT_TO_STAT, y los suma sobre
+--- `stats` (in-place). Usa un GameTooltip invisible reutilizable —
+--- `CreateFrame("GameTooltip", nombre, nil, "GameTooltipTemplate")` +
+--- `SetOwner(WorldFrame, "ANCHOR_NONE")` + `SetHyperlink` +
+--- `_G[nombre.."TextLeft"..i]:GetText()` — verificado contra
+--- SharpiesGearJudge (Helpers.lua, Parse.lua): es la forma estándar de
+--- leer un tooltip sin mostrarlo en pantalla, no algo inventado acá.
+local function AddEquipEffectStats(itemLink, stats)
+	scanTooltip = scanTooltip or CreateFrame("GameTooltip", "PickItRightScanTooltip", nil, "GameTooltipTemplate")
+	scanTooltip:SetOwner(WorldFrame, "ANCHOR_NONE")
+	scanTooltip:ClearLines()
+
+	if not pcall(scanTooltip.SetHyperlink, scanTooltip, itemLink) then
+		return
+	end
+
+	for i = 2, scanTooltip:NumLines() do
+		local fontString = _G["PickItRightScanTooltipTextLeft" .. i]
+		local text = fontString and fontString:GetText()
+		local equipLine = text and text:lower():match("^equip:%s*(.+)")
+		if equipLine then
+			for _, pattern in ipairs(EQUIP_LINE_PATTERNS) do
+				local name, value = equipLine:match(pattern)
+				if name and value then
+					local statKey = EQUIP_TEXT_TO_STAT[name]
+					if statKey then
+						stats[statKey] = (stats[statKey] or 0) + tonumber(value)
+					end
+					break
+				end
+			end
+		end
+	end
+end
+
+-- GetItemStats devuelve una tabla plana {ITEM_MOD_X = valor} para los
+-- stats crudos del ítem; AddEquipEffectStats suma encima los bonos de
+-- "Equip: X" que GetItemStats no ve (ver el comentario grande arriba).
 local function ExtractStats(itemLink)
-	return GetItemStats(itemLink) or {}
+	local stats = GetItemStats(itemLink) or {}
+	AddEquipEffectStats(itemLink, stats)
+	return stats
 end
 
 --- Pide las stats de un itemLink. Si el cliente ya tiene el item cacheado,

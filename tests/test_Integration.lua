@@ -11,7 +11,22 @@
 -- --- Stubs mínimos de la API real de WoW (no de otros módulos) ----------
 
 local frames = {}
-_G.CreateFrame = function()
+-- Tooltip invisible que usa AddEquipEffectStats (Fase 10, ItemStatsAnalyzer.lua).
+-- Este archivo no necesita probar el parseo de líneas "Equip:" en sí --
+-- eso ya lo cubre test_ItemStatsAnalyzer.lua -- solo necesita que
+-- CreateFrame("GameTooltip", ...) no explote; un tooltip mock "vacío"
+-- (0 líneas) es correcto acá.
+_G.WorldFrame = {}
+_G.CreateFrame = function(frameType, name)
+	if frameType == "GameTooltip" then
+		local tip = {}
+		function tip:SetOwner() end
+		function tip:ClearLines() end
+		function tip:SetHyperlink() end
+		function tip:NumLines() return 0 end
+		return tip
+	end
+
 	local frame = { events = {} }
 	function frame:RegisterEvent(event) self.events[event] = true end
 	function frame:SetScript(_, handler) self.handler = handler end

@@ -5,7 +5,7 @@ Asistente de decisiones de equipo en tiempo real para **World of Warcraft: Burni
 ## Qué hace
 
 - Detecta automáticamente tu clase/raza/spec (vía el árbol de talentos con más puntos invertidos — TBC no expone un flag oficial de "spec activa").
-- Extrae las estadísticas reales del ítem con la API de WoW, nunca por item level ni parseando el texto del tooltip.
+- Extrae las estadísticas reales del ítem con la API de WoW, nunca por item level. También lee los bonos que solo aparecen como línea "Equip: Improves/Increases..." del tooltip (crítico, golpe, poder con hechizos, etc. cuando vienen de un efecto que se dispara al equipar) — la API de WoW no expone esos, así que es la única parte del addon que sí mira el texto del tooltip, y solo funciona en cliente en inglés.
 - Filtra por proficiencia de armadura/arma de tu clase y por stats irrelevantes a tu rol antes de puntuar nada.
 - Puntúa cada ítem contra un perfil de pesos por clase y especialización (Fase 1 de contenido: Kara/Gruul/Magtheridon), fuente real de theorycrafting, no números inventados.
 - Compara contra lo que ya tenés equipado en ese slot — no solo el puntaje absoluto del ítem.
@@ -37,6 +37,7 @@ Pasá el cursor sobre cualquier ítem en la ventana de saqueo, en una tirada de 
 
 - Cobertura de pesos: las 9 clases × 3 especializaciones, pero **solo Fase 1 de contenido** — fases posteriores todavía no tienen datos y se degradan con gracia (motivo "Sin datos de build") en vez de dar una recomendación inventada.
 - Requiere un cliente TBC Classic; el `.toc` fija `## Interface: 20506` — si tu cliente marca el addon como "fuera de fecha", verificalo con `/dump select(4, GetBuildInfo())` in-game.
+- Los bonos "Equip: X" (ver arriba) solo se detectan en cliente en inglés — en otro idioma el ítem sigue puntuando con sus stats normales, simplemente sin ese extra.
 
 ## Desarrollo
 
