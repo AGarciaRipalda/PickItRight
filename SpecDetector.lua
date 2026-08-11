@@ -48,8 +48,21 @@ local function ScanDominantTalentTree()
 	local dominantTab, dominantPoints = nil, -1
 	local pointsByTab = {}
 
+	-- Bug real encontrado en juego: este cliente ("TBC Anniversary") sí tiene
+	-- spec dual (a diferencia del TBC original/2021, que nunca lo tuvo) --
+	-- confirmado porque Cell trae un .toc específico para TBC (Cell_TBC.toc)
+	-- que carga Core_Vanilla.lua, y ESE archivo llama a GetActiveTalentGroup()
+	-- sin condicional (además usa GetNumTalentGroups() == 2 para detectar si
+	-- el dual spec está activo). Sin pasar el 4º argumento (talentGroup) a
+	-- GetTalentTabInfo, el cliente devolvía 0 puntos en las 3 pestañas para
+	-- un personaje real con 10/44 puntos repartidos, porque el grupo activo
+	-- del jugador era el "secundario" (2) y GetTalentTabInfo sin ese
+	-- argumento no lo lee. `type(...) == "function"` en vez de asumir que
+	-- existe: TBC Classic "normal" (sin spec dual) puede no tener esta API.
+	local activeGroup = (type(GetActiveTalentGroup) == "function") and GetActiveTalentGroup() or nil
+
 	for tabIndex = 1, (GetNumTalentTabs() or 0) do
-		local _, _, pointsSpent = GetTalentTabInfo(tabIndex)
+		local _, _, pointsSpent = GetTalentTabInfo(tabIndex, nil, nil, activeGroup)
 		-- tonumber(), no "or 0": en el cliente TBC Anniversary, GetTalentTabInfo
 		-- puede devolver "" (string vacío) en vez de un número para una pestaña
 		-- que el cliente todavía no calculó al momento de PLAYER_ENTERING_WORLD
@@ -64,7 +77,7 @@ local function ScanDominantTalentTree()
 		end
 	end
 
-	return dominantTab, pointsByTab
+	return dominantTab, pointsByTab, activeGroup
 end
 
 -- nil si la clase o el árbol dominante no están en SPEC_ROLES (clase nueva
@@ -79,12 +92,13 @@ end
 local function RefreshCharacterState()
 	local _, classToken = UnitClass("player")
 	local _, raceToken = UnitRace("player")
-	local dominantTab, pointsByTab = ScanDominantTalentTree()
+	local dominantTab, pointsByTab, activeGroup = ScanDominantTalentTree()
 
 	ns.context.class = classToken
 	ns.context.race = raceToken
 	ns.context.dominantTab = dominantTab
 	ns.context.pointsByTab = pointsByTab
+	ns.context.activeTalentGroup = activeGroup
 	ns.context.role = DeriveRole(classToken, dominantTab)
 end
 
@@ -93,4 +107,11 @@ ns.RefreshCharacterState = RefreshCharacterState
 local frame = CreateFrame("Frame")
 frame:RegisterEvent("PLAYER_ENTERING_WORLD")
 frame:RegisterEvent("CHARACTER_POINTS_CHANGED")
+-- Solo dispara en clientes con spec dual (ver el comentario en
+-- ScanDominantTalentTree) -- RegisterEvent con un nombre de evento
+-- inexistente en un cliente más viejo es un error duro en WoW, así que
+-- primero hay que confirmar que el cliente lo reconoce.
+if type(GetNumTalentGroups) == "function" and GetNumTalentGroups() == 2 then
+	frame:RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED")
+end
 frame:SetScript("OnEvent", RefreshCharacterState)

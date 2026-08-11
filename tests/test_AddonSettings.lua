@@ -157,17 +157,20 @@ ns.context = {
 	role = "Caster",
 	dominantTab = 1,
 	pointsByTab = { [1] = 25, [2] = 5, [3] = 15 },
+	activeTalentGroup = 2,
 }
 printedMessages = {}
 SlashCmdList["PICKITRIGHT"]("context")
-local sawClassRole, sawDominantTab, sawPointsByTab = false, false, false
+local sawClassRole, sawDominantTab, sawPointsByTab, sawActiveGroup = false, false, false, false
 for _, msg in ipairs(printedMessages) do
 	if msg:find("MAGE") and msg:find("Caster") then sawClassRole = true end
 	if msg:find("pestaña 1") and msg:find("dominante") then sawDominantTab = true end
 	if msg:find("pestaña 1 = 25 puntos") and msg:find("pestaña 3 = 15 puntos") then sawPointsByTab = true end
+	if msg:find("Grupo de spec activo") and msg:find("2") then sawActiveGroup = true end
 end
 assert(sawClassRole, "context: muestra clase y rol")
 assert(sawDominantTab, "context: muestra la pestaña dominante")
 assert(sawPointsByTab, "context: muestra el desglose de puntos por pestaña, no solo la dominante")
+assert(sawActiveGroup, "context: muestra el grupo de spec dual activo (10/44 puntos leídos en el grupo equivocado fue el bug real)")
 
 print("OK: AddonSettings.lua supera la prueba de humo")

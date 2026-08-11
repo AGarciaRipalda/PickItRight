@@ -2,10 +2,15 @@
 -- la raíz del repo con cualquier intérprete Lua 5.1:
 --   lua5.1 tests/test_SpecDetector.lua
 
-local mockClass, mockPoints
+local mockClass, mockPoints, mockActiveGroup, mockPointsByGroup
 
 _G.GetNumTalentTabs = function() return 3 end
-_G.GetTalentTabInfo = function(i) return "tab", "icon", mockPoints[i] end
+_G.GetTalentTabInfo = function(i, _, _, group)
+	if mockPointsByGroup then
+		return "tab", "icon", mockPointsByGroup[group or mockActiveGroup][i]
+	end
+	return "tab", "icon", mockPoints[i]
+end
 _G.UnitClass = function() return "mock", mockClass end
 _G.UnitRace = function() return "mock", "Human" end
 _G.CreateFrame = function() return { RegisterEvent = function() end, SetScript = function() end } end
@@ -14,7 +19,7 @@ local ns = {}
 assert(loadfile("SpecDetector.lua"))("PickItRight", ns)
 
 local function check(class, points, expectedRole, label)
-	mockClass, mockPoints = class, points
+	mockClass, mockPoints, mockPointsByGroup = class, points, nil
 	ns.RefreshCharacterState()
 	assert(ns.context.role == expectedRole,
 		("%s: esperado %s, obtenido %s"):format(label, expectedRole, tostring(ns.context.role)))
@@ -52,5 +57,31 @@ check("MAGE", { 0, 0, 0 }, "Caster", "sin puntos de talento gastados, resuelve a
 -- simple "or 0" no lo atrapa, y comparar string contra número tira un
 -- error duro. tonumber(pointsSpent) or 0 sí lo cubre.
 check("MAGE", { "", 40, 5 }, "Caster", "pestaña sin calcular todavía (string vacío) no debe romper ni ganar el empate")
+
+-- Bug real reportado por el jugador (nivel 63, 10 puntos en Arcano, 44 en
+-- Escarcha) pero /pickitright context mostraba 0/0/0: el cliente tiene spec
+-- dual (Cell trae un .toc específico de TBC que confirma GetActiveTalentGroup
+-- existe acá) y el grupo activo del jugador era el secundario. Sin pasar el
+-- grupo activo como 4º argumento a GetTalentTabInfo, se leía el grupo
+-- primario (vacío) en vez del real.
+mockPointsByGroup = {
+	[1] = { 0, 0, 0 },   -- grupo primario: nunca usado, sin puntos
+	[2] = { 10, 0, 44 }, -- grupo secundario (activo): Arcano 10, Escarcha 44
+}
+_G.GetActiveTalentGroup = function() return 2 end
+mockClass = "MAGE"
+ns.RefreshCharacterState()
+assert(ns.context.dominantTab == 3,
+	("spec dual: esperaba pestaña 3 (Escarcha) dominante, obtuvo %s"):format(tostring(ns.context.dominantTab)))
+assert(ns.context.pointsByTab[1] == 10 and ns.context.pointsByTab[3] == 44,
+	"spec dual: lee los puntos del grupo activo (2), no del grupo primario vacío")
+assert(ns.context.activeTalentGroup == 2,
+	"spec dual: ns.context expone el grupo activo detectado, para diagnóstico (/pickitright context)")
+mockPointsByGroup = nil
+
+-- Sin GetActiveTalentGroup en el cliente (TBC Classic "normal", sin spec
+-- dual): no debe romper, simplemente pasa nil como talentGroup.
+_G.GetActiveTalentGroup = nil
+check("MAGE", { 5, 0, 40 }, "Caster", "cliente sin spec dual (GetActiveTalentGroup ausente) sigue funcionando")
 
 print("OK: SpecDetector.lua supera la prueba de humo")

@@ -228,6 +228,7 @@ local function HandleContextCommand()
 	Print(("Clase: %s | Raza: %s | Rol: %s"):format(
 		context.class, context.race or "?", context.role or "sin datos"))
 	Print(("Árbol de talentos dominante: pestaña %s"):format(tostring(context.dominantTab)))
+	Print(("Grupo de spec activo (dual spec): %s"):format(tostring(context.activeTalentGroup)))
 
 	if context.pointsByTab then
 		local parts = {}
