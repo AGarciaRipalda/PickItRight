@@ -5,6 +5,9 @@
 local mockClass, mockPoints, mockActiveGroup, mockPointsByGroup
 
 _G.GetNumTalentTabs = function() return 3 end
+-- GetNumTalentPoints es el camino PRIMARIO real (ver SpecDetector.lua) --
+-- mockeado por defecto para que todos los check() de abajo lo ejerciten.
+_G.GetNumTalentPoints = function(i) return mockPoints[i] end
 _G.GetTalentTabInfo = function(i, _, _, group)
 	if mockPointsByGroup then
 		return "tab", "icon", mockPointsByGroup[group or mockActiveGroup][i]
@@ -59,11 +62,13 @@ check("MAGE", { 0, 0, 0 }, "Caster", "sin puntos de talento gastados, resuelve a
 check("MAGE", { "", 40, 5 }, "Caster", "pestaña sin calcular todavía (string vacío) no debe romper ni ganar el empate")
 
 -- Bug real reportado por el jugador (nivel 63, 10 puntos en Arcano, 44 en
--- Escarcha) pero /pickitright context mostraba 0/0/0: el cliente tiene spec
--- dual (Cell trae un .toc específico de TBC que confirma GetActiveTalentGroup
--- existe acá) y el grupo activo del jugador era el secundario. Sin pasar el
--- grupo activo como 4º argumento a GetTalentTabInfo, se leía el grupo
--- primario (vacío) en vez del real.
+-- Escarcha) pero /pickitright context mostraba 0/0/0, incluso después de
+-- pasar el grupo activo como 4º argumento a GetTalentTabInfo (ese fix SÍ
+-- detectaba bien el grupo activo, pero GetTalentTabInfo seguía devolviendo
+-- 0 puntos). Este es el camino de FALLBACK (sin GetNumTalentPoints
+-- disponible) -- fuerza a que ns.context.activeTalentGroup exista y se use
+-- correctamente como 4º argumento cuando el camino primario no está.
+_G.GetNumTalentPoints = nil
 mockPointsByGroup = {
 	[1] = { 0, 0, 0 },   -- grupo primario: nunca usado, sin puntos
 	[2] = { 10, 0, 44 }, -- grupo secundario (activo): Arcano 10, Escarcha 44
@@ -72,16 +77,28 @@ _G.GetActiveTalentGroup = function() return 2 end
 mockClass = "MAGE"
 ns.RefreshCharacterState()
 assert(ns.context.dominantTab == 3,
-	("spec dual: esperaba pestaña 3 (Escarcha) dominante, obtuvo %s"):format(tostring(ns.context.dominantTab)))
+	("spec dual (fallback): esperaba pestaña 3 (Escarcha) dominante, obtuvo %s"):format(tostring(ns.context.dominantTab)))
 assert(ns.context.pointsByTab[1] == 10 and ns.context.pointsByTab[3] == 44,
-	"spec dual: lee los puntos del grupo activo (2), no del grupo primario vacío")
+	"spec dual (fallback): lee los puntos del grupo activo (2), no del grupo primario vacío")
 assert(ns.context.activeTalentGroup == 2,
-	"spec dual: ns.context expone el grupo activo detectado, para diagnóstico (/pickitright context)")
+	"spec dual (fallback): ns.context expone el grupo activo detectado, para diagnóstico (/pickitright context)")
 mockPointsByGroup = nil
 
 -- Sin GetActiveTalentGroup en el cliente (TBC Classic "normal", sin spec
--- dual): no debe romper, simplemente pasa nil como talentGroup.
+-- dual) y también sin GetNumTalentPoints: no debe romper, simplemente pasa
+-- nil como talentGroup al camino de fallback.
 _G.GetActiveTalentGroup = nil
-check("MAGE", { 5, 0, 40 }, "Caster", "cliente sin spec dual (GetActiveTalentGroup ausente) sigue funcionando")
+check("MAGE", { 5, 0, 40 }, "Caster", "cliente sin spec dual ni GetNumTalentPoints sigue funcionando")
+
+-- Bug real de seguimiento: pasar el grupo activo a GetTalentTabInfo detectaba
+-- bien el grupo pero seguía leyendo 0 puntos en el cliente real del usuario.
+-- GetNumTalentPoints(tabIndex) -- confirmada real y en uso sin argumento de
+-- grupo en SharpiesGearJudge -- es el camino PRIMARIO cuando existe, y debe
+-- preferirse sobre GetTalentTabInfo aunque ambas estén disponibles.
+_G.GetNumTalentPoints = function(i) return mockPoints[i] end
+_G.GetTalentTabInfo = function() return "tab", "icon", 0 end -- a propósito "roto": si esto se usara, el test fallaría
+check("MAGE", { 10, 0, 44 }, "Caster", "con GetNumTalentPoints disponible, se prefiere sobre GetTalentTabInfo")
+assert(ns.context.pointsByTab[3] == 44,
+	"GetNumTalentPoints es el camino primario: no debe caer a GetTalentTabInfo (que acá devuelve 0 a propósito)")
 
 print("OK: SpecDetector.lua supera la prueba de humo")

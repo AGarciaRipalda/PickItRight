@@ -53,23 +53,37 @@ local function ScanDominantTalentTree()
 	-- confirmado porque Cell trae un .toc específico para TBC (Cell_TBC.toc)
 	-- que carga Core_Vanilla.lua, y ESE archivo llama a GetActiveTalentGroup()
 	-- sin condicional (además usa GetNumTalentGroups() == 2 para detectar si
-	-- el dual spec está activo). Sin pasar el 4º argumento (talentGroup) a
-	-- GetTalentTabInfo, el cliente devolvía 0 puntos en las 3 pestañas para
-	-- un personaje real con 10/44 puntos repartidos, porque el grupo activo
-	-- del jugador era el "secundario" (2) y GetTalentTabInfo sin ese
-	-- argumento no lo lee. `type(...) == "function"` en vez de asumir que
-	-- existe: TBC Classic "normal" (sin spec dual) puede no tener esta API.
+	-- el dual spec está activo). `type(...) == "function"` en vez de asumir
+	-- que existe: TBC Classic "normal" (sin spec dual) puede no tener esta API.
 	local activeGroup = (type(GetActiveTalentGroup) == "function") and GetActiveTalentGroup() or nil
 
 	for tabIndex = 1, (GetNumTalentTabs() or 0) do
-		local _, _, pointsSpent = GetTalentTabInfo(tabIndex, nil, nil, activeGroup)
-		-- tonumber(), no "or 0": en el cliente TBC Anniversary, GetTalentTabInfo
-		-- puede devolver "" (string vacío) en vez de un número para una pestaña
-		-- que el cliente todavía no calculó al momento de PLAYER_ENTERING_WORLD
-		-- (bug real encontrado en juego, no en los tests). "" es verdadero en
-		-- Lua, así que "pointsSpent or 0" lo dejaba pasar tal cual, y la
-		-- comparación de más abajo (número vs string) tiraba un error duro que
-		-- abortaba ANTES de escribir nada en ns.context — rompía todo el addon.
+		-- Bug real de seguimiento: pasar activeGroup como 4º argumento de
+		-- GetTalentTabInfo (el patrón de LibDualSpec-1.0, ver más abajo)
+		-- detectaba bien el grupo activo (confirmado con /pickitright context)
+		-- pero SEGUÍA devolviendo 0 puntos en las 3 pestañas para un
+		-- personaje real con 10/44 repartidos. GetNumTalentPoints(tabIndex)
+		-- es una API distinta y más simple -- confirmada real y en uso
+		-- (sin argumento de grupo, sin guard alguno) en SharpiesGearJudge
+		-- (Dynamic_Engine.lua MSC:GetDominantTalentTree, y en sus perfiles
+		-- reales de Paladín/Guerrero) -- ya resuelve el grupo activo por su
+		-- cuenta. Se prefiere sobre GetTalentTabInfo cuando existe; si no
+		-- (variante de cliente sin esta API), cae al camino anterior.
+		local pointsSpent
+		if type(GetNumTalentPoints) == "function" then
+			pointsSpent = GetNumTalentPoints(tabIndex)
+		else
+			local _, _, rawPoints = GetTalentTabInfo(tabIndex, nil, nil, activeGroup)
+			pointsSpent = rawPoints
+		end
+		-- tonumber(), no "or 0": en el cliente TBC Anniversary, la API de
+		-- talentos puede devolver "" (string vacío) en vez de un número para
+		-- una pestaña que el cliente todavía no calculó al momento de
+		-- PLAYER_ENTERING_WORLD (bug real encontrado en juego, no en los
+		-- tests). "" es verdadero en Lua, así que "pointsSpent or 0" lo
+		-- dejaba pasar tal cual, y la comparación de más abajo (número vs
+		-- string) tiraba un error duro que abortaba ANTES de escribir nada
+		-- en ns.context — rompía todo el addon.
 		pointsSpent = tonumber(pointsSpent) or 0
 		pointsByTab[tabIndex] = pointsSpent
 		if pointsSpent > dominantPoints then
@@ -107,6 +121,12 @@ ns.RefreshCharacterState = RefreshCharacterState
 local frame = CreateFrame("Frame")
 frame:RegisterEvent("PLAYER_ENTERING_WORLD")
 frame:RegisterEvent("CHARACTER_POINTS_CHANGED")
+-- Confirmado real (sin guard, registrado siempre) en SharpiesGearJudge
+-- (Dynamic_Engine.lua) para el mismo propósito: la data de talentos puede
+-- no estar sincronizada todavía en PLAYER_ENTERING_WORLD (mismo problema de
+-- fondo que el bug de pointsSpent = "" de arriba), y este evento es la señal
+-- real de que ya terminó de llegar del servidor.
+frame:RegisterEvent("PLAYER_TALENT_UPDATE")
 -- Solo dispara en clientes con spec dual (ver el comentario en
 -- ScanDominantTalentTree) -- RegisterEvent con un nombre de evento
 -- inexistente en un cliente más viejo es un error duro en WoW, así que
