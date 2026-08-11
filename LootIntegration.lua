@@ -5,6 +5,19 @@ local ADDON_NAME, ns = ...
 -- una tirada de grupo need/greed (START_LOOT_ROLL/CONFIRM_LOOT_ROLL). No
 -- hay más caminos que cubrir.
 
+-- Bug real encontrado en juego (Fase 9): en el cliente TBC Anniversary
+-- (arquitectura moderna, ver el comentario "11.x" de SharpiesGearJudge en
+-- TooltipManager.lua) los globals clásicos GetContainerNumSlots/
+-- GetContainerItemLink NO existen — solo la variante namespaced
+-- C_Container.*. Sin este shim, ScanBags tiraba "attempt to call a nil
+-- value" al abrir la mochila. Verificado el patrón `C_Container.X or X`
+-- contra 6 addons reales instalados (SharpiesGearJudge —Interface.lua
+-- recorre bag=0,4 con la misma estructura que ScanBags acá—, BigWigs,
+-- DBM-Core, Details, Gathering, Gargul): todos usan exactamente este
+-- fallback, ninguno asume que solo un lado existe.
+local GetContainerNumSlots = C_Container and C_Container.GetContainerNumSlots or GetContainerNumSlots
+local GetContainerItemLink = C_Container and C_Container.GetContainerItemLink or GetContainerItemLink
+
 -- {[itemString] = {itemLink=, result={eligible=, reason=, score=}}}
 -- Vive solo mientras la ventana de loot actual está abierta.
 local lootResults = {}

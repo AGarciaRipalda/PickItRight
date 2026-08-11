@@ -15,6 +15,11 @@ local COLOR_RED = "|cffff4444"
 local COLOR_GRAY = "|cff999999"
 local COLOR_RESET = "|r"
 
+-- Mismo shim que LootIntegration.lua (ver el comentario ahí): en el
+-- cliente TBC Anniversary el global clásico GetContainerItemLink no
+-- existe, solo C_Container.GetContainerItemLink.
+local GetContainerItemLink = C_Container and C_Container.GetContainerItemLink or GetContainerItemLink
+
 --- Línea de score para un ítem elegible. isUpgrade puede ser true, false,
 --- o nil (sin datos de comparación, ver ComputeUpgradeInfo en
 --- ItemFilter.lua) — cada caso tiene su propio color y redacción.
