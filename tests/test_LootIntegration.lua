@@ -17,6 +17,14 @@ _G.GetLootSlotLink = function(slot) return mockLootSlots[slot] end
 local mockRollLinks = {} -- [rollID] = itemLink
 _G.GetLootRollItemLink = function(rollID) return mockRollLinks[rollID] end
 
+local mockQuestChoices, mockQuestRewards = {}, {} -- arrays de itemLinks
+_G.GetNumQuestChoices = function() return #mockQuestChoices end
+_G.GetNumQuestRewards = function() return #mockQuestRewards end
+_G.GetQuestItemLink = function(kind, i)
+	if kind == "choice" then return mockQuestChoices[i] end
+	if kind == "reward" then return mockQuestRewards[i] end
+end
+
 local ns = {}
 ns.GetItemString = function(link) return link end -- identidad: simplifica el test
 ns.RequestItemStats = function(link, callback) callback({ ITEM_MOD_SPELL_POWER_SHORT = 10 }) end -- síncrono
@@ -102,6 +110,45 @@ ns.IsModuleEnabled = function() return false end
 mockLootSlots = { "item:deberia-ignorarse" }
 registeredHandler(nil, "LOOT_OPENED")
 assertEqual(next(ns.currentLootResults), nil, "caso 9: módulo desactivado no analiza ni guarda nada")
+ns.IsModuleEnabled = function() return true end
+
+-- --- Recompensas de misión (QUEST_DETAIL / QUEST_COMPLETE) ---------------
+mockCachedResult = nil -- el caso 8 lo dejó fijo; no debe filtrarse acá
+
+-- Caso 10: QUEST_DETAIL analiza tanto las recompensas elegibles como las
+-- garantizadas, cada una bajo su propia clave "tipo:índice".
+mockQuestChoices = { "item:choiceA", "item:choiceB" }
+mockQuestRewards = { "item:rewardA" }
+local evaluateCallsBeforeQuest = #evaluateCalls
+registeredHandler(nil, "QUEST_DETAIL")
+assertEqual(ns.GetQuestRewardResult("choice", 1).itemLink, "item:choiceA", "caso 10: choice 1 analizado")
+assertEqual(ns.GetQuestRewardResult("choice", 2).itemLink, "item:choiceB", "caso 10: choice 2 analizado")
+assertEqual(ns.GetQuestRewardResult("reward", 1).itemLink, "item:rewardA", "caso 10: reward 1 analizado")
+assertEqual(ns.GetQuestRewardResult("reward", 1).result.score, 99, "caso 10: score real, no un placeholder")
+assertEqual(#evaluateCalls, evaluateCallsBeforeQuest + 3, "caso 10: se evaluaron las 3 recompensas")
+
+-- Caso 11: mismo evento (QUEST_COMPLETE, misma misión) con los mismos
+-- ítems no vuelve a evaluar nada -- dedupe por identidad de itemLink.
+registeredHandler(nil, "QUEST_COMPLETE")
+assertEqual(#evaluateCalls, evaluateCallsBeforeQuest + 3, "caso 11: recompensas sin cambios no se re-evalúan")
+
+-- Caso 12: otra misión reutiliza el mismo índice "reward:1" con un ítem
+-- distinto -- SÍ debe re-evaluar (la clave no es un candado permanente).
+mockQuestRewards = { "item:rewardA_nueva_mision" }
+registeredHandler(nil, "QUEST_COMPLETE")
+assertEqual(ns.GetQuestRewardResult("reward", 1).itemLink, "item:rewardA_nueva_mision",
+	"caso 12: mismo índice, misión distinta, se re-evalúa con el ítem nuevo")
+assertEqual(#evaluateCalls, evaluateCallsBeforeQuest + 4, "caso 12: se evaluó el ítem nuevo")
+
+-- Caso 13: índice sin recompensa (misión sin elección) devuelve nil, no error.
+assertEqual(ns.GetQuestRewardResult("choice", 99), nil, "caso 13: índice inexistente devuelve nil")
+
+-- Caso 14: módulo desactivado -- tampoco escanea recompensas de misión.
+ns.IsModuleEnabled = function() return false end
+mockQuestChoices = { "item:deberia-ignorarse-tambien" }
+local evaluateCallsBeforeDisabled = #evaluateCalls
+registeredHandler(nil, "QUEST_DETAIL")
+assertEqual(#evaluateCalls, evaluateCallsBeforeDisabled, "caso 14: módulo desactivado no analiza recompensas de misión")
 ns.IsModuleEnabled = function() return true end
 
 print("OK: LootIntegration.lua supera la prueba de humo")

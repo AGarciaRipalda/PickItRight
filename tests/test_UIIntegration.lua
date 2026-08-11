@@ -16,6 +16,7 @@ local GameTooltip = {
 	lines = {},
 	SetLootItem = function() end,
 	SetLootRollItem = function() end,
+	SetQuestItem = function() end,
 	AddLine = function(self, text) table.insert(self.lines, text) end,
 	Show = function() end,
 }
@@ -27,8 +28,10 @@ _G.GetLootSlotLink = function(slot) return mockLootLinks[slot] end
 local ns = {}
 local mockLootResults = {} -- [itemLink] = entry
 local mockRollResults = {} -- [rollID] = entry
+local mockQuestResults = {} -- ["tipo:índice"] = entry
 ns.GetLootResult = function(itemLink) return mockLootResults[itemLink] end
 ns.GetRollResult = function(rollID) return mockRollResults[rollID] end
+ns.GetQuestRewardResult = function(kind, i) return mockQuestResults[kind .. ":" .. i] end
 
 local moduleEnabled = true -- normalmente de AddonSettings.lua (Fase 8)
 ns.IsModuleEnabled = function() return moduleEnabled end
@@ -79,12 +82,26 @@ mockRollResults[99] = { result = { eligible = true, isUpgrade = false, score = 3
 GameTooltip:SetLootRollItem(99)
 assert(lastLine():find("|cff999999"), "tirada: no-mejora sale en gris")
 
+-- --- Hook de recompensas de misión (SetQuestItem) -------------------------
+
+mockQuestResults["choice:1"] = { result = { eligible = true, isUpgrade = true, score = 42 } }
+GameTooltip:SetQuestItem("choice", 1)
+assert(lastLine():find("|cff33ff33"), "misión: recompensa elegible en verde")
+
+mockQuestResults["reward:1"] = { result = { eligible = false, reason = "Arma no entrenada para tu clase" } }
+GameTooltip:SetQuestItem("reward", 1)
+assertEqual(lastLine(), "|cffff4444Arma no entrenada para tu clase|r", "misión: recompensa rechazada en rojo con el motivo exacto")
+
+GameTooltip:SetQuestItem("choice", 2) -- sin entrada todavía (hueco async)
+assert(lastLine():find("analizando"), "misión: sin resultado todavía muestra placeholder, no error")
+
 -- --- Fase 8: /pickitright module UIIntegration off ----------------------------
 
 moduleEnabled = false
 local lineCountBefore = #GameTooltip.lines
 GameTooltip:SetLootItem(1)
 GameTooltip:SetLootRollItem(99)
+GameTooltip:SetQuestItem("choice", 1)
 assertEqual(#GameTooltip.lines, lineCountBefore, "módulo desactivado: no agrega ninguna línea nueva")
 moduleEnabled = true
 

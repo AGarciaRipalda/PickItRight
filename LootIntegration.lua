@@ -16,6 +16,16 @@ local lootResults = {}
 -- si algún día se vuelve un problema real.
 local rollResults = {}
 
+-- {["tipo:índice"] = {itemLink=, result=}} -- recompensas de misión
+-- (elegibles y garantizadas) mostradas en la pantalla de aceptar
+-- (QUEST_DETAIL) o entregar (QUEST_COMPLETE) una misión. ponytail: nunca se
+-- limpia explícitamente; la clave es acotada (unos pocos "choice:N"/
+-- "reward:N") y el hook de UI (Fase 6) solo la consulta para los índices
+-- que la ventana de Blizzard realmente dibuja para la misión ACTUAL — una
+-- entrada vieja de una misión anterior bajo el mismo índice queda huérfana
+-- sin causar daño, porque nada la vuelve a leer.
+local questResults = {}
+
 local function ClearTable(t)
 	for k in pairs(t) do
 		t[k] = nil
@@ -82,11 +92,42 @@ local function AnalyzeRoll(rollID)
 	end)
 end
 
+--- Recorre las recompensas visibles de la misión actual (elegibles vía
+--- GetNumQuestChoices/"choice" + garantizadas vía GetNumQuestRewards/
+--- "reward") y analiza cada una. Se llama en QUEST_DETAIL (vista previa al
+--- aceptar) y QUEST_COMPLETE (al entregar, donde el jugador realmente
+--- elige) — ambas pantallas comparten esta misma API de recompensas.
+--- Sobrescribe la entrada de un índice solo si el ítem cambió respecto a
+--- la última vez (evita reencolar RequestItemStats si el evento se
+--- repite para la misma misión, y detecta correctamente cuando el índice
+--- pasa a corresponder a otra misión).
+local function ScanQuestKind(kind, count)
+	for i = 1, count do
+		local itemLink = GetQuestItemLink(kind, i)
+		if itemLink then
+			local key = kind .. ":" .. i
+			local existing = questResults[key]
+			if not existing or existing.itemLink ~= itemLink then
+				AnalyzeAndStore(itemLink, function(result)
+					questResults[key] = { itemLink = itemLink, result = result }
+				end)
+			end
+		end
+	end
+end
+
+local function ScanQuestRewards()
+	ScanQuestKind("choice", GetNumQuestChoices())
+	ScanQuestKind("reward", GetNumQuestRewards())
+end
+
 local frame = CreateFrame("Frame")
 frame:RegisterEvent("LOOT_OPENED")
 frame:RegisterEvent("LOOT_CLOSED")
 frame:RegisterEvent("START_LOOT_ROLL")
 frame:RegisterEvent("CONFIRM_LOOT_ROLL")
+frame:RegisterEvent("QUEST_DETAIL")
+frame:RegisterEvent("QUEST_COMPLETE")
 frame:SetScript("OnEvent", function(_, event, ...)
 	-- Fase 8: /pickitright module LootIntegration off. No se puede des-registrar
 	-- el frame en caliente, así que el apagado vive acá, al principio de
@@ -102,15 +143,18 @@ frame:SetScript("OnEvent", function(_, event, ...)
 	elseif event == "START_LOOT_ROLL" or event == "CONFIRM_LOOT_ROLL" then
 		local rollID = ...
 		AnalyzeRoll(rollID)
+	elseif event == "QUEST_DETAIL" or event == "QUEST_COMPLETE" then
+		ScanQuestRewards()
 	end
 end)
 
--- Almacenamiento temporal que consumirá el módulo de UI (próxima fase). Se
--- exponen las tablas directamente (se mutan in-place, nunca se reasignan,
--- así que la referencia siempre queda vigente) más un par de helpers de
--- consulta para no tener que conocer el detalle de itemString por fuera.
+-- Almacenamiento temporal que consume UIIntegration.lua. Se exponen las
+-- tablas directamente (se mutan in-place, nunca se reasignan, así que la
+-- referencia siempre queda vigente) más helpers de consulta para no tener
+-- que conocer el detalle de itemString/clave por fuera.
 ns.currentLootResults = lootResults
 ns.currentRollResults = rollResults
+ns.currentQuestResults = questResults
 
 function ns.GetLootResult(itemLink)
 	local itemString = ns.GetItemString(itemLink)
@@ -119,4 +163,8 @@ end
 
 function ns.GetRollResult(rollID)
 	return rollResults[rollID]
+end
+
+function ns.GetQuestRewardResult(questItemType, index)
+	return questResults[questItemType .. ":" .. index]
 end

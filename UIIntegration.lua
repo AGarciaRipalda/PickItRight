@@ -79,3 +79,21 @@ hooksecurefunc(GameTooltip, "SetLootRollItem", function(tooltip, rollID)
 	AppendAnalysis(tooltip, ns.GetRollResult(rollID))
 	tooltip:Show()
 end)
+
+-- Recompensas de misión: SetQuestItem es el método real que usa el frame
+-- de recompensas de Blizzard tanto al aceptar (QUEST_DETAIL) como al
+-- entregar (QUEST_COMPLETE) una misión — cada botón de recompensa llama
+-- GameTooltip:SetQuestItem(tipo, índice) al mostrar su tooltip.
+-- LIMITACIÓN CONOCIDA: no cubre mirar recompensas desde el diario de
+-- misiones sin estar frente al NPC (esa vista usa GetQuestLogItemLink/
+-- SetQuestLogItem, una API distinta) — no implementado a propósito por no
+-- tener verificados esos nombres contra este cliente; mismo criterio que
+-- ARMOR_PROFICIENCY/WEAPON_PROFICIENCY en ItemFilter.lua, no repetir el
+-- error de nombre de stat sin verificar de la Fase 3 (ver CLAUDE.md).
+hooksecurefunc(GameTooltip, "SetQuestItem", function(tooltip, questItemType, index)
+	if not ns.IsModuleEnabled("UIIntegration") then
+		return
+	end
+	AppendAnalysis(tooltip, ns.GetQuestRewardResult(questItemType, index))
+	tooltip:Show()
+end)
