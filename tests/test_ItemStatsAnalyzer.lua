@@ -158,6 +158,24 @@ assertEqual(tunicResult.ITEM_MOD_INTELLECT_SHORT, 15, "caso 7: Intelecto crudo p
 assertEqual(tunicResult.ITEM_MOD_SPELL_CRIT_RATING_SHORT, 14, "caso 7: crítico de hechizos capturado desde Equip:")
 assertEqual(tunicResult.ITEM_MOD_SPELL_POWER_SHORT, 44, "caso 7: poder con hechizos ('by up to N') capturado desde Equip:")
 
+-- Caso 7b: regresión -- bug real encontrado cuando un usuario reportó que
+-- el fix del caso 7 no cambiaba el veredicto en el cliente real. Causa:
+-- algunas líneas de tooltip traen un código de color |cffXXXXXX...|r
+-- embebido en el propio GetText(), no solo vía SetTextColor -- sin
+-- limpiarlo antes de matchear, el ancla "^equip:" fallaba en silencio.
+-- Mismo ítem que el caso 7, pero con la línea de crítico "coloreada".
+local coloredEquipItem = "item:70006:0:0:0:0:0:0:0:70:0:0"
+loadedItems[coloredEquipItem] = true
+statsByLink[coloredEquipItem] = {}
+mockTooltipLines[coloredEquipItem] = {
+	"Colored Equip Line Item",
+	"|cff1eff00Equip: Improves spell critical strike rating by 14.|r",
+}
+local coloredResult
+ns.RequestItemStats(coloredEquipItem, function(stats) coloredResult = stats end)
+assertEqual(coloredResult.ITEM_MOD_SPELL_CRIT_RATING_SHORT, 14,
+	"caso 7b: línea 'Equip:' con código de color embebido sigue capturándose")
+
 -- Caso 8: líneas que NO empiezan con "Equip:" (stat crudo en verde, bono de
 -- socket, "Durability", etc.) no deben interpretarse como bono de Equip:.
 local decoyItem = "item:70003:0:0:0:0:0:0:0:70:0:0"

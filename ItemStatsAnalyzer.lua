@@ -140,7 +140,23 @@ local function AddEquipEffectStats(itemLink, stats)
 	for i = 2, scanTooltip:NumLines() do
 		local fontString = _G["PickItRightScanTooltipTextLeft" .. i]
 		local text = fontString and fontString:GetText()
-		local equipLine = text and text:lower():match("^equip:%s*(.+)")
+		if text then
+			-- Limpieza defensiva antes de matchear "^equip:" -- mismo orden de
+			-- pasos que MSC.Scanner.ParseEquipLine (SharpiesGearJudge): algunas
+			-- líneas de tooltip traen códigos de color |cffXXXXXX...|r inline
+			-- en el propio GetText(), no solo vía SetTextColor -- sin esta
+			-- limpieza, un código de color al principio de la línea rompe el
+			-- ancla "^equip:" en silencio y la línea completa queda invisible
+			-- para el scanner, sin ningún error. Bug real: encontrado cuando
+			-- un usuario reportó que el fix de esta misma fase no cambiaba el
+			-- veredicto para un ítem que SÍ tenía línea "Equip:".
+			text = text:lower()
+				:gsub("|c%x%x%x%x%x%x%x%x", "")
+				:gsub("|r", "")
+				:gsub("\n", " ")
+				:gsub("%s+", " ")
+		end
+		local equipLine = text and text:match("^%s*equip:%s*(.+)")
 		if equipLine then
 			for _, pattern in ipairs(EQUIP_LINE_PATTERNS) do
 				local name, value = equipLine:match(pattern)
