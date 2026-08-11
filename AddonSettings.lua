@@ -206,8 +206,41 @@ local function HandleInspectCommand(rawMsg)
 	end)
 end
 
+--[[
+COMANDO DE DIAGNÓSTICO: /pickitright context
+==============================================
+Agregado en la misma investigación que /pickitright inspect: los scores
+de `inspect` para dos ítems reales no coincidían con la cuenta a mano
+usando el perfil de Mago Frost, pero SÍ coincidían exactos usando el
+perfil de Mago Arcano — es decir, `ns.context.dominantTab` no era el que
+el jugador esperaba. Este comando expone `ns.context` tal cual (clase,
+raza, árbol dominante, puntos por árbol, rol) para poder confirmar esto
+sin que el jugador tenga que interpretar manualmente cuál pestaña del
+panel de talentos es "1", "2" o "3".
+]]
+local function HandleContextCommand()
+	local context = ns.context
+	if not context or not context.class then
+		Print("Contexto no disponible todavía (¿recién iniciaste sesión? esperá a PLAYER_ENTERING_WORLD).")
+		return
+	end
+
+	Print(("Clase: %s | Raza: %s | Rol: %s"):format(
+		context.class, context.race or "?", context.role or "sin datos"))
+	Print(("Árbol de talentos dominante: pestaña %s"):format(tostring(context.dominantTab)))
+
+	if context.pointsByTab then
+		local parts = {}
+		for tabIndex, points in pairs(context.pointsByTab) do
+			table.insert(parts, ("pestaña %d = %d puntos"):format(tabIndex, points))
+		end
+		table.sort(parts)
+		Print(("Puntos por pestaña: %s"):format(table.concat(parts, ", ")))
+	end
+end
+
 local function PrintUsage()
-	Print("/pickitright phase [1-5] | weight <ITEM_MOD_X> <valor|clear> | module <nombre> <on|off> | inspect <shift-click de un ítem>")
+	Print("/pickitright phase [1-5] | weight <ITEM_MOD_X> <valor|clear> | module <nombre> <on|off> | inspect <shift-click de un ítem> | context")
 end
 
 SLASH_PICKITRIGHT1 = "/pickitright"
@@ -229,6 +262,8 @@ SlashCmdList["PICKITRIGHT"] = function(msg)
 		-- pegado con shift-click trae espacios adentro de los corchetes
 		-- ([Nombre del Objeto]), partirlo por %S+ lo rompería.
 		HandleInspectCommand(msg)
+	elseif command == "context" then
+		HandleContextCommand()
 	else
 		PrintUsage()
 	end

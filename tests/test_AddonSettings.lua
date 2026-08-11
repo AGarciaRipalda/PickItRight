@@ -137,4 +137,37 @@ end
 assert(sawBonusDetected, "inspect: stat solo presente en el fusionado se señala como bono de Equip: detectado")
 assert(sawScore, "inspect: con perfil activo, calcula y muestra el score final")
 
+-- --- Comando /pickitright context ---------------------------------------
+-- Agregado en la misma investigación: los scores de `inspect` no
+-- coincidían con la cuenta a mano usando el perfil que el jugador creía
+-- tener activo -- este comando expone ns.context tal cual para poder
+-- confirmar qué árbol de talentos detectó el addon como dominante, sin
+-- que el jugador tenga que interpretarlo a mano.
+
+-- Caso: sin contexto todavía (recién logueado, antes de PLAYER_ENTERING_WORLD).
+ns.context = nil
+printedMessages = {}
+SlashCmdList["PICKITRIGHT"]("context")
+assert(lastMessage():find("no disponible"), "context: sin ns.context todavía, avisa en vez de tirar error")
+
+-- Caso: contexto real -- confirma clase/rol/pestaña dominante/puntos por pestaña.
+ns.context = {
+	class = "MAGE",
+	race = "Human",
+	role = "Caster",
+	dominantTab = 1,
+	pointsByTab = { [1] = 25, [2] = 5, [3] = 15 },
+}
+printedMessages = {}
+SlashCmdList["PICKITRIGHT"]("context")
+local sawClassRole, sawDominantTab, sawPointsByTab = false, false, false
+for _, msg in ipairs(printedMessages) do
+	if msg:find("MAGE") and msg:find("Caster") then sawClassRole = true end
+	if msg:find("pestaña 1") and msg:find("dominante") then sawDominantTab = true end
+	if msg:find("pestaña 1 = 25 puntos") and msg:find("pestaña 3 = 15 puntos") then sawPointsByTab = true end
+end
+assert(sawClassRole, "context: muestra clase y rol")
+assert(sawDominantTab, "context: muestra la pestaña dominante")
+assert(sawPointsByTab, "context: muestra el desglose de puntos por pestaña, no solo la dominante")
+
 print("OK: AddonSettings.lua supera la prueba de humo")
