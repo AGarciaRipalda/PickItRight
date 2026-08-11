@@ -137,6 +137,26 @@ end
 assert(sawBonusDetected, "inspect: stat solo presente en el fusionado se señala como bono de Equip: detectado")
 assert(sawScore, "inspect: con perfil activo, calcula y muestra el score final")
 
+-- Caso: expone equipLoc/classID/subclassID crudos y el veredicto de
+-- ns.IsEligible -- agregado tras un reporte real (anillos/collares/trinkets
+-- rechazados con "Tipo de armadura incorrecto", algo que la lectura
+-- estática de ItemFilter.lua no explica) para diagnosticar con datos reales
+-- del cliente en vez de seguir adivinando sobre el código.
+_G.GetItemInfo = function()
+	return "Anillo Mock", nil, nil, nil, nil, nil, nil, nil, "INVTYPE_FINGER", nil, nil, 4, 0
+end
+ns.IsEligible = function() return false, "Tipo de armadura incorrecto (Cloth, tu clase usa Plate)" end
+
+printedMessages = {}
+SlashCmdList["PICKITRIGHT"]("inspect " .. mockItemLink)
+local sawRawFields, sawEligibility = false, false
+for _, msg in ipairs(printedMessages) do
+	if msg:find("equipLoc=INVTYPE_FINGER") and msg:find("classID=4") and msg:find("subclassID=0") then sawRawFields = true end
+	if msg:find("IsEligible: false") and msg:find("Tipo de armadura incorrecto") then sawEligibility = true end
+end
+assert(sawRawFields, "inspect: muestra equipLoc/classID/subclassID crudos de GetItemInfo")
+assert(sawEligibility, "inspect: muestra el veredicto real de ns.IsEligible y su motivo")
+
 -- --- Comando /pickitright context ---------------------------------------
 -- Agregado en la misma investigación: los scores de `inspect` no
 -- coincidían con la cuenta a mano usando el perfil que el jugador creía

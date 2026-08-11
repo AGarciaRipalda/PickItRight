@@ -158,8 +158,20 @@ local function HandleInspectCommand(rawMsg)
 		return
 	end
 
-	local itemName = GetItemInfo(itemLink)
+	local itemName, _, _, _, _, _, _, _, itemEquipLoc, _, _, classID, subclassID = GetItemInfo(itemLink)
 	Print(("Inspeccionando: %s"):format(itemName or itemLink))
+	-- Agregado tras un reporte real (anillos/collares/trinkets rechazados
+	-- con "Tipo de armadura incorrecto", algo que ARMOR_MATERIAL_SLOTS en
+	-- ItemFilter.lua no debería producir para esos equipLoc según lectura
+	-- estática del código) -- expone los valores CRUDOS de GetItemInfo y el
+	-- veredicto real de IsEligible para el ítem puntual, en vez de seguir
+	-- adivinando sobre el código sin dato real del cliente.
+	Print(("  equipLoc=%s classID=%s subclassID=%s"):format(
+		tostring(itemEquipLoc), tostring(classID), tostring(subclassID)))
+	if ns.IsEligible then
+		local eligible, reason = ns.IsEligible(itemLink, GetItemStats(itemLink) or {})
+		Print(("  IsEligible: %s%s"):format(tostring(eligible), reason and (" -- " .. reason) or ""))
+	end
 
 	local rawStats = GetItemStats(itemLink) or {}
 	local rawKeys = {}
