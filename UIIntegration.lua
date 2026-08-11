@@ -20,17 +20,20 @@ local COLOR_RESET = "|r"
 -- existe, solo C_Container.GetContainerItemLink.
 local GetContainerItemLink = C_Container and C_Container.GetContainerItemLink or GetContainerItemLink
 
---- Línea de score para un ítem elegible. isUpgrade puede ser true, false,
---- o nil (sin datos de comparación, ver ComputeUpgradeInfo en
---- ItemFilter.lua) — cada caso tiene su propio color y redacción.
+--- Línea de veredicto para un ítem elegible. isUpgrade puede ser true,
+--- false, o nil (sin datos de comparación, ver ComputeUpgradeInfo en
+--- ItemFilter.lua) — cada caso tiene su propio color y redacción. A pedido
+--- explícito: nunca se muestra el número de score, solo el veredicto —
+--- `result.score`/`result.equippedScore` siguen calculándose igual (los
+--- sigue necesitando ComputeUpgradeInfo para decidir isUpgrade), solo no
+--- se imprimen acá.
 local function FormatScoreLine(result)
 	if result.isUpgrade == true then
-		return ("%sMejora: +%.1f%s"):format(COLOR_GREEN, result.score, COLOR_RESET)
+		return ("%sEquípatelo%s"):format(COLOR_GREEN, COLOR_RESET)
 	elseif result.isUpgrade == false then
-		return ("%sNo es mejora (%.1f vs %.1f equipado)%s"):format(
-			COLOR_GRAY, result.score, result.equippedScore, COLOR_RESET)
+		return ("%sNo es mejora%s"):format(COLOR_GRAY, COLOR_RESET)
 	else
-		return ("%sPuntaje: %.1f%s"):format(COLOR_GRAY, result.score, COLOR_RESET)
+		return ("%sElegible%s"):format(COLOR_GRAY, COLOR_RESET)
 	end
 end
 

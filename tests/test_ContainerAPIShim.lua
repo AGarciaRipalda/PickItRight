@@ -84,7 +84,12 @@ assert(loadfile("UIIntegration.lua"))("PickItRight", ns)
 
 GameTooltip:SetBagItem(0, 1)
 local lastLine = GameTooltip.lines[#GameTooltip.lines]
-assert(lastLine and lastLine:find("55"),
-	"caso 2: SetBagItem resolvió el link vía C_Container y mostró el score real, no un placeholder ni un error")
+-- No se muestra el score (a pedido explícito) -- lo que confirma que
+-- SetBagItem resolvió el link vía C_Container sin error es que aparezca
+-- el veredicto real ("Elegible", sin isUpgrade) y no el placeholder
+-- "analizando..." (que saldría si ns.GetBagItemResult no hubiera
+-- encontrado nada, ej. si el link nunca se hubiera resuelto).
+assert(lastLine and lastLine:find("Elegible") and not lastLine:find("analizando"),
+	"caso 2: SetBagItem resolvió el link vía C_Container y mostró el veredicto real, no un placeholder ni un error")
 
 print("OK: test_ContainerAPIShim.lua supera la prueba de humo")

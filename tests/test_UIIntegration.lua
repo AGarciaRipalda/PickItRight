@@ -56,18 +56,24 @@ local function lastLine()
 end
 
 -- --- FormatScoreLine (función pura) --------------------------------------
+-- A pedido explícito: nunca se muestra el número de score, solo el
+-- veredicto -- estos asserts confirman que el texto NO incluye ningún
+-- número, además del texto/color esperado.
 
 local upgradeLine = ns.FormatScoreLine({ isUpgrade = true, score = 12.34 })
 assert(upgradeLine:find("|cff33ff33"), "verde: color de mejora clara")
-assert(upgradeLine:find("12.3"), "verde: incluye el score")
+assert(upgradeLine:find("Equípatelo"), "verde: texto 'Equípatelo'")
+assert(not upgradeLine:find("12%.3"), "verde: NO incluye el score")
 
 local notUpgradeLine = ns.FormatScoreLine({ isUpgrade = false, score = 5, equippedScore = 20 })
 assert(notUpgradeLine:find("|cff999999"), "gris: color de no-mejora")
-assert(notUpgradeLine:find("5.0") and notUpgradeLine:find("20.0"), "gris: incluye ambos scores")
+assert(notUpgradeLine:find("No es mejora"), "gris: texto 'No es mejora'")
+assert(not notUpgradeLine:find("5%.0") and not notUpgradeLine:find("20%.0"), "gris: NO incluye ningún score")
 
 local noComparisonLine = ns.FormatScoreLine({ isUpgrade = nil, score = 7 })
 assert(noComparisonLine:find("|cff999999"), "gris: color cuando no hay comparación")
-assert(noComparisonLine:find("Puntaje"), "gris: rotulado como puntaje simple, no mejora/no-mejora")
+assert(noComparisonLine:find("Elegible"), "gris: rotulado como elegible, no mejora/no-mejora")
+assert(not noComparisonLine:find("7%.0"), "gris: NO incluye el score")
 
 -- --- Hook de la ventana de loot (SetLootItem) -----------------------------
 
