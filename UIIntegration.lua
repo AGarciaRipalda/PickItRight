@@ -97,3 +97,19 @@ hooksecurefunc(GameTooltip, "SetQuestItem", function(tooltip, questItemType, ind
 	AppendAnalysis(tooltip, ns.GetQuestRewardResult(questItemType, index))
 	tooltip:Show()
 end)
+
+-- Ítems de la mochila: SetBagItem es el método real que usa el tooltip de
+-- cualquier botón de bolsa. Acá sí hay que resolver el itemLink dentro del
+-- hook (a diferencia de SetLootItem, que también lo resuelve, esto es
+-- consistente) porque el callback solo recibe bolsa+slot, no el link.
+hooksecurefunc(GameTooltip, "SetBagItem", function(tooltip, bag, slot)
+	if not ns.IsModuleEnabled("UIIntegration") then
+		return
+	end
+	local itemLink = GetContainerItemLink(bag, slot)
+	if not itemLink then
+		return
+	end
+	AppendAnalysis(tooltip, ns.GetBagItemResult(itemLink))
+	tooltip:Show()
+end)

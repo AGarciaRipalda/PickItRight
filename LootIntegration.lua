@@ -26,6 +26,16 @@ local rollResults = {}
 -- sin causar daño, porque nada la vuelve a leer.
 local questResults = {}
 
+-- {[itemString] = {itemLink=, result=}} -- ítems ya en la mochila (no solo
+-- loot recién llegado). ponytail: nunca se limpia -- a diferencia de
+-- lootResults (que sí se vacía porque una ventana de loot es efímera por
+-- diseño), un ítem puede quedarse en la mochila sesiones enteras, así que
+-- "limpiar y reanalizar" no ahorraría nada real; la dedupe por itemString
+-- ya evita reanalizar lo mismo en cada BAG_UPDATE_DELAYED. Una entrada de
+-- un ítem vendido/destruido queda huérfana sin causar daño (nada la vuelve
+-- a consultar, igual que con questResults).
+local bagResults = {}
+
 local function ClearTable(t)
 	for k in pairs(t) do
 		t[k] = nil
@@ -121,6 +131,29 @@ local function ScanQuestRewards()
 	ScanQuestKind("reward", GetNumQuestRewards())
 end
 
+--- Recorre todos los bolsillos (mochila 0 + bolsas 1..NUM_BAG_SLOTS) y
+--- analiza cada ítem nuevo, mismo criterio de dedupe que ScanLootWindow.
+--- Se llama en BAG_UPDATE_DELAYED, no en BAG_UPDATE: ese último dispara
+--- una vez POR CADA slot que cambia, así que lootear/vender/mover un
+--- stack entero dispararía muchos BAG_UPDATE seguidos para la misma
+--- acción del jugador — BAG_UPDATE_DELAYED se dispara UNA vez después de
+--- que el lote completo se asienta.
+local function ScanBags()
+	for bag = 0, NUM_BAG_SLOTS do
+		for slot = 1, GetContainerNumSlots(bag) do
+			local itemLink = GetContainerItemLink(bag, slot)
+			if itemLink then
+				local itemString = ns.GetItemString(itemLink)
+				if itemString and not bagResults[itemString] then
+					AnalyzeAndStore(itemLink, function(result)
+						bagResults[itemString] = { itemLink = itemLink, result = result }
+					end)
+				end
+			end
+		end
+	end
+end
+
 local frame = CreateFrame("Frame")
 frame:RegisterEvent("LOOT_OPENED")
 frame:RegisterEvent("LOOT_CLOSED")
@@ -128,6 +161,7 @@ frame:RegisterEvent("START_LOOT_ROLL")
 frame:RegisterEvent("CONFIRM_LOOT_ROLL")
 frame:RegisterEvent("QUEST_DETAIL")
 frame:RegisterEvent("QUEST_COMPLETE")
+frame:RegisterEvent("BAG_UPDATE_DELAYED")
 frame:SetScript("OnEvent", function(_, event, ...)
 	-- Fase 8: /pickitright module LootIntegration off. No se puede des-registrar
 	-- el frame en caliente, así que el apagado vive acá, al principio de
@@ -145,6 +179,8 @@ frame:SetScript("OnEvent", function(_, event, ...)
 		AnalyzeRoll(rollID)
 	elseif event == "QUEST_DETAIL" or event == "QUEST_COMPLETE" then
 		ScanQuestRewards()
+	elseif event == "BAG_UPDATE_DELAYED" then
+		ScanBags()
 	end
 end)
 
@@ -155,6 +191,7 @@ end)
 ns.currentLootResults = lootResults
 ns.currentRollResults = rollResults
 ns.currentQuestResults = questResults
+ns.currentBagResults = bagResults
 
 function ns.GetLootResult(itemLink)
 	local itemString = ns.GetItemString(itemLink)
@@ -167,4 +204,9 @@ end
 
 function ns.GetQuestRewardResult(questItemType, index)
 	return questResults[questItemType .. ":" .. index]
+end
+
+function ns.GetBagItemResult(itemLink)
+	local itemString = ns.GetItemString(itemLink)
+	return itemString and bagResults[itemString]
 end

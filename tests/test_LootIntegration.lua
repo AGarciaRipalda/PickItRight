@@ -25,6 +25,15 @@ _G.GetQuestItemLink = function(kind, i)
 	if kind == "reward" then return mockQuestRewards[i] end
 end
 
+_G.NUM_BAG_SLOTS = 4
+-- Capacidad y contenido separados a propósito: un table constructor con un
+-- "hueco" (nil en medio) deja indefinido qué devuelve el operador # de Lua,
+-- así que la capacidad del bolsillo NO se deriva de contar itemLinks.
+local mockBagCapacity = {} -- [bagID] = cantidad de slots
+local mockBagItems = {} -- [bagID] = {[slot] = itemLink}
+_G.GetContainerNumSlots = function(bag) return mockBagCapacity[bag] or 0 end
+_G.GetContainerItemLink = function(bag, slot) return mockBagItems[bag] and mockBagItems[bag][slot] end
+
 local ns = {}
 ns.GetItemString = function(link) return link end -- identidad: simplifica el test
 ns.RequestItemStats = function(link, callback) callback({ ITEM_MOD_SPELL_POWER_SHORT = 10 }) end -- síncrono
@@ -149,6 +158,49 @@ mockQuestChoices = { "item:deberia-ignorarse-tambien" }
 local evaluateCallsBeforeDisabled = #evaluateCalls
 registeredHandler(nil, "QUEST_DETAIL")
 assertEqual(#evaluateCalls, evaluateCallsBeforeDisabled, "caso 14: módulo desactivado no analiza recompensas de misión")
+ns.IsModuleEnabled = function() return true end
+
+-- --- Ítems de la mochila (BAG_UPDATE_DELAYED) -----------------------------
+
+-- Caso 15: recorre todos los bolsillos (0..NUM_BAG_SLOTS) y analiza cada
+-- ítem, dejando huecos (slots vacíos) sin romper el escaneo.
+mockBagCapacity = { [0] = 3, [1] = 1 }
+mockBagItems = {
+	[0] = { [1] = "item:bag0-a", [3] = "item:bag0-c" }, -- slot 2 vacío
+	[1] = { [1] = "item:bag1-a" },
+}
+local evaluateCallsBeforeBags = #evaluateCalls
+registeredHandler(nil, "BAG_UPDATE_DELAYED")
+assertEqual(ns.GetBagItemResult("item:bag0-a").result.score, 99, "caso 15: item de bolsillo 0 analizado")
+assertEqual(ns.GetBagItemResult("item:bag0-c").result.score, 99, "caso 15: slot vacío en medio no rompe el escaneo")
+assertEqual(ns.GetBagItemResult("item:bag1-a").result.score, 99, "caso 15: item de bolsillo 1 (bolsa equipada) analizado")
+assertEqual(#evaluateCalls, evaluateCallsBeforeBags + 3, "caso 15: se evaluaron los 3 ítems de mochila")
+
+-- Caso 16: volver a disparar el evento sin cambios en la mochila no
+-- re-evalúa los mismos ítems -- a diferencia de loot, esta tabla nunca se
+-- limpia, así que la dedupe por itemString es lo único que evita
+-- reanalizar en cada BAG_UPDATE_DELAYED (que puede disparar seguido).
+registeredHandler(nil, "BAG_UPDATE_DELAYED")
+assertEqual(#evaluateCalls, evaluateCallsBeforeBags + 3, "caso 16: ítems ya analizados no se re-evalúan")
+
+-- Caso 17: un ítem vendido/movido (ya no está en la mochila) deja de
+-- aparecer en el escaneo, pero su entrada vieja no se borra ni causa error
+-- -- simplemente queda huérfana (ver comentario ponytail en el código).
+mockBagItems[1] = {}
+registeredHandler(nil, "BAG_UPDATE_DELAYED")
+assertEqual(ns.GetBagItemResult("item:bag1-a").result.score, 99, "caso 17: entrada huérfana sigue accesible, no se borra")
+assertEqual(#evaluateCalls, evaluateCallsBeforeBags + 3, "caso 17: no hay nada nuevo que analizar")
+
+-- Caso 18: helper de consulta con ítem que nunca estuvo en la mochila.
+assertEqual(ns.GetBagItemResult("item:nunca-existio"), nil, "caso 18: ítem no visto devuelve nil")
+
+-- Caso 19: módulo desactivado -- tampoco escanea la mochila.
+ns.IsModuleEnabled = function() return false end
+mockBagCapacity[2] = 1
+mockBagItems[2] = { [1] = "item:deberia-ignorarse-bolsa" }
+local evaluateCallsBeforeBagsDisabled = #evaluateCalls
+registeredHandler(nil, "BAG_UPDATE_DELAYED")
+assertEqual(#evaluateCalls, evaluateCallsBeforeBagsDisabled, "caso 19: módulo desactivado no analiza la mochila")
 ns.IsModuleEnabled = function() return true end
 
 print("OK: LootIntegration.lua supera la prueba de humo")

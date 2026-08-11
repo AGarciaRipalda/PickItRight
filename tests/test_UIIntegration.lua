@@ -17,6 +17,7 @@ local GameTooltip = {
 	SetLootItem = function() end,
 	SetLootRollItem = function() end,
 	SetQuestItem = function() end,
+	SetBagItem = function() end,
 	AddLine = function(self, text) table.insert(self.lines, text) end,
 	Show = function() end,
 }
@@ -25,13 +26,18 @@ _G.GameTooltip = GameTooltip
 local mockLootLinks = {} -- [slot] = itemLink
 _G.GetLootSlotLink = function(slot) return mockLootLinks[slot] end
 
+local mockBagLinks = {} -- [bag] = {[slot] = itemLink}
+_G.GetContainerItemLink = function(bag, slot) return mockBagLinks[bag] and mockBagLinks[bag][slot] end
+
 local ns = {}
 local mockLootResults = {} -- [itemLink] = entry
 local mockRollResults = {} -- [rollID] = entry
 local mockQuestResults = {} -- ["tipo:índice"] = entry
+local mockBagResults = {} -- [itemLink] = entry
 ns.GetLootResult = function(itemLink) return mockLootResults[itemLink] end
 ns.GetRollResult = function(rollID) return mockRollResults[rollID] end
 ns.GetQuestRewardResult = function(kind, i) return mockQuestResults[kind .. ":" .. i] end
+ns.GetBagItemResult = function(itemLink) return mockBagResults[itemLink] end
 
 local moduleEnabled = true -- normalmente de AddonSettings.lua (Fase 8)
 ns.IsModuleEnabled = function() return moduleEnabled end
@@ -95,6 +101,18 @@ assertEqual(lastLine(), "|cffff4444Arma no entrenada para tu clase|r", "misión:
 GameTooltip:SetQuestItem("choice", 2) -- sin entrada todavía (hueco async)
 assert(lastLine():find("analizando"), "misión: sin resultado todavía muestra placeholder, no error")
 
+-- --- Hook de ítems de mochila (SetBagItem) ---------------------------------
+
+mockBagLinks[0] = { [1] = "item:bag0-1" }
+mockBagResults["item:bag0-1"] = { result = { eligible = true, isUpgrade = false, score = 8, equippedScore = 20 } }
+GameTooltip:SetBagItem(0, 1)
+assert(lastLine():find("|cff999999"), "mochila: no-mejora sale en gris")
+
+local lineCountBeforeEmptySlot = #GameTooltip.lines
+GameTooltip:SetBagItem(0, 2) -- slot vacío, GetContainerItemLink devuelve nil
+assertEqual(#GameTooltip.lines, lineCountBeforeEmptySlot,
+	"mochila: slot vacío no agrega ninguna línea (corta antes de llegar a AppendAnalysis)")
+
 -- --- Fase 8: /pickitright module UIIntegration off ----------------------------
 
 moduleEnabled = false
@@ -102,6 +120,7 @@ local lineCountBefore = #GameTooltip.lines
 GameTooltip:SetLootItem(1)
 GameTooltip:SetLootRollItem(99)
 GameTooltip:SetQuestItem("choice", 1)
+GameTooltip:SetBagItem(0, 1)
 assertEqual(#GameTooltip.lines, lineCountBefore, "módulo desactivado: no agrega ninguna línea nueva")
 moduleEnabled = true
 
