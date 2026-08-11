@@ -14,6 +14,14 @@ _G.GetItemInfo = function(link)
 	return item.name, link, 1, 70, 1, "Armor", "Mock", 1, item.equipLoc, "icon", 100, item.classID, item.subclassID
 end
 
+local equipmentFrame
+_G.CreateFrame = function()
+	local frame = { RegisterEvent = function() end }
+	function frame:SetScript(_, handler) frame.handler = handler end
+	equipmentFrame = frame
+	return frame
+end
+
 local ns = {}
 assert(loadfile("ItemFilter.lua"))("PickItRight", ns)
 
@@ -195,5 +203,17 @@ local callsBeforeOverride = scoreCallCount
 overridesVersion = 2 -- simula /pickitright weight ...
 local afterOverride = ns.EvaluateItem("cacheItem", { SCORE = 10 }, {}, {})
 assert(scoreCallCount > callsBeforeOverride, "caso 21: cambiar la versión de overrides invalida el cache")
+
+-- Caso 22 (bug real): cambiar de equipo (sin cambiar spec/fase/overrides)
+-- también debe invalidar el cache -- un ítem evaluado ANTES de equipar una
+-- pieza mejor no debe seguir diciendo "Equípatelo" para siempre solo porque
+-- su itemString no cambió. PLAYER_EQUIPMENT_CHANGED (confirmado real vía
+-- SharpiesGearJudge) es lo que dispara esto.
+local beforeEquip = ns.EvaluateItem("cacheItem", { SCORE = 10 }, {}, {})
+local callsBeforeEquip = scoreCallCount
+
+equipmentFrame.handler() -- simula PLAYER_EQUIPMENT_CHANGED
+local afterEquip = ns.EvaluateItem("cacheItem", { SCORE = 10 }, {}, {})
+assert(scoreCallCount > callsBeforeEquip, "caso 22: cambiar de equipo invalida el cache aunque spec/fase/overrides no cambien")
 
 print("OK: ItemFilter.lua supera la prueba de humo")

@@ -291,18 +291,29 @@ una sola key — así no se acumulan en memoria resultados de perfiles/fases
 viejos de la misma sesión, y sigue siendo, en la práctica, exactamente
 "una entrada por item bajo el perfil activo".
 
-ponytail: la clave NO incluye el equipo actualmente puesto (currentStats/
-bySlot) — es la simplificación que pidió esta fase explícitamente (itemLink
-+ perfil, nada más). Si el jugador cambia de pieza entre lootear dos copias
-del mismo item sin cambiar de clase/spec/fase, la segunda lectura devuelve
-el equippedScore/isUpgrade calculado con el equipo de la PRIMERA. No es un
-problema real en la práctica (el equipo no cambia a mitad de un pull), pero
-si algún día importa, invalidar también en un evento de cambio de
-equipamiento (verificar el nombre exacto disponible en el cliente TBC
-Classic antes de usarlo — no está verificado en este pase).
+Bug real reportado por un jugador, corrige la limitación que quedaba
+documentada arriba como "no verificado en este pase": comparando "Terrorcloth
+Mantle" contra el "Mantle of Magical Might" ya equipado, el addon marcó
+"Equípatelo" un cambio que perdía 16 de Crítico de Hechizos y 8 de Poder con
+Hechizos (confirmado con el propio panel de comparación de Blizzard) — una
+diferencia clara bajo cualquier perfil de Mago (Frost o Arcane). Causa: la
+clave de cache NO incluía el equipo actualmente puesto, así que un resultado
+calculado ANTES de equipar el Mantle of Magical Might (con un slot de hombros
+más débil o vacío) quedaba pegado para siempre, porque el itemString del
+candidato no cambiaba. Fix: `equipmentRevision` (abajo) se suma a la key y
+sube en `PLAYER_EQUIPMENT_CHANGED` — evento confirmado real (registrado sin
+guard en SharpiesGearJudge, Dynamic_Engine.lua, para este mismo propósito de
+invalidar cache al cambiar de equipo).
 ]]
 local resultCache = {}
 local cachedProfileKey
+
+local equipmentRevision = 0
+local equipmentWatcher = CreateFrame("Frame")
+equipmentWatcher:RegisterEvent("PLAYER_EQUIPMENT_CHANGED")
+equipmentWatcher:SetScript("OnEvent", function()
+	equipmentRevision = equipmentRevision + 1
+end)
 
 -- Incluye ns.GetOverridesVersion (Fase 8, AddonSettings.lua): un override
 -- manual de pesos cambia lo que GetActiveWeightProfile devuelve para la
@@ -315,7 +326,7 @@ local function GetProfileKey()
 	local phase = ns.GetContentPhase and ns.GetContentPhase()
 	local overridesVersion = ns.GetOverridesVersion and ns.GetOverridesVersion()
 	return table.concat({ tostring(context and context.class), tostring(context and context.dominantTab),
-		tostring(phase), tostring(overridesVersion) }, "|")
+		tostring(phase), tostring(overridesVersion), tostring(equipmentRevision) }, "|")
 end
 
 local function InvalidateCacheIfProfileChanged()
