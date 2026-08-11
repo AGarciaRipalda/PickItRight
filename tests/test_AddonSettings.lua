@@ -84,4 +84,57 @@ assertEqual(PickItRightDB.enabledModules.NoExiste, nil, "no se guarda nada para 
 SlashCmdList["PICKITRIGHT"]("")
 assert(lastMessage():find("phase"), "sin comando, muestra el resumen de uso")
 
+-- --- Comando /pickitright inspect --------------------------------------------
+-- Diagnóstico agregado para depurar un reporte real donde un ítem con
+-- línea "Equip:" no puntuaba el bono ni siquiera después de dos fixes en
+-- ItemStatsAnalyzer.lua. Prueba que el comando compara correctamente
+-- GetItemStats() crudo contra lo que devuelve ns.RequestItemStats
+-- (crudo + bonos de Equip: fusionados).
+
+local mockItemLink = "|cffffffff|Hitem:12345:0:0:0:0:0:0:0:70:0:0|h[Mock Item]|h|r"
+_G.GetItemInfo = function() return "Mock Item" end
+
+-- Caso: sin link de ítem en el mensaje -> muestra uso, no explota.
+printedMessages = {}
+SlashCmdList["PICKITRIGHT"]("inspect")
+assert(lastMessage():find("Uso"), "inspect sin link muestra el uso")
+
+-- Caso: GetItemStats crudo y ns.RequestItemStats coinciden -> ningún bono
+-- de Equip: detectado (el escenario que motivó el diagnóstico: si el
+-- scanner de tooltip no encuentra nada, esto tiene que decirlo explícito).
+_G.GetItemStats = function() return { ITEM_MOD_STAMINA_SHORT = 10 } end
+ns.RequestItemStats = function(link, callback) callback({ ITEM_MOD_STAMINA_SHORT = 10 }) end
+ns.GetActiveWeightProfile = function() return nil end
+
+printedMessages = {}
+SlashCmdList["PICKITRIGHT"]("inspect " .. mockItemLink)
+local sawNoBonus, sawNoProfile = false, false
+for _, msg in ipairs(printedMessages) do
+	if msg:find("Ningún bono") then sawNoBonus = true end
+	if msg:find("Sin perfil de pesos") then sawNoProfile = true end
+end
+assert(sawNoBonus, "inspect: sin diferencia entre crudo y fusionado, avisa que no encontró bonos de Equip:")
+assert(sawNoProfile, "inspect: sin perfil de pesos activo, lo dice en vez de tirar error")
+
+-- Caso: ns.RequestItemStats trae un stat de más (simula que
+-- AddEquipEffectStats SÍ encontró un bono de Equip:) -> lo señala
+-- explícitamente con el valor crudo vs el fusionado.
+_G.GetItemStats = function() return { ITEM_MOD_STAMINA_SHORT = 10 } end
+ns.RequestItemStats = function(link, callback)
+	callback({ ITEM_MOD_STAMINA_SHORT = 10, ITEM_MOD_SPELL_CRIT_RATING_SHORT = 14 })
+end
+ns.GetActiveWeightProfile = function() return { ITEM_MOD_SPELL_CRIT_RATING_SHORT = 0.6 } end
+ns.GetEquippedSnapshot = function() return {} end
+ns.ScoreStats = function(stats, profile) return (stats.ITEM_MOD_SPELL_CRIT_RATING_SHORT or 0) * profile.ITEM_MOD_SPELL_CRIT_RATING_SHORT end
+
+printedMessages = {}
+SlashCmdList["PICKITRIGHT"]("inspect " .. mockItemLink)
+local sawBonusDetected, sawScore = false, false
+for _, msg in ipairs(printedMessages) do
+	if msg:find("bono de Equip: detectado") and msg:find("ITEM_MOD_SPELL_CRIT_RATING_SHORT") then sawBonusDetected = true end
+	if msg:find("Score final") and msg:find("8.4") then sawScore = true end
+end
+assert(sawBonusDetected, "inspect: stat solo presente en el fusionado se señala como bono de Equip: detectado")
+assert(sawScore, "inspect: con perfil activo, calcula y muestra el score final")
+
 print("OK: AddonSettings.lua supera la prueba de humo")
