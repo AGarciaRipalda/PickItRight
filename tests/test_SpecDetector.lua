@@ -2,18 +2,23 @@
 -- la raíz del repo con cualquier intérprete Lua 5.1:
 --   lua5.1 tests/test_SpecDetector.lua
 
-local mockClass, mockPoints, mockActiveGroup, mockPointsByGroup
+local mockClass, mockPoints
 
 _G.GetNumTalentTabs = function() return 3 end
--- GetNumTalentPoints es el camino PRIMARIO real (ver SpecDetector.lua) --
--- mockeado por defecto para que todos los check() de abajo lo ejerciten.
-_G.GetNumTalentPoints = function(i) return mockPoints[i] end
-_G.GetTalentTabInfo = function(i, _, _, group)
-	if mockPointsByGroup then
-		return "tab", "icon", mockPointsByGroup[group or mockActiveGroup][i]
-	end
-	return "tab", "icon", mockPoints[i]
+-- GetTalentInfo(tab, talentIndex) por talento individual es el camino
+-- PRIMARIO real (ver SpecDetector.lua) -- se modela cada pestaña como un
+-- solo "talento" cuyo rank es el total de puntos de esa pestaña, para poder
+-- seguir expresando los casos de prueba como { pestaña1, pestaña2, pestaña3 }.
+_G.GetNumTalents = function() return 1 end
+_G.GetTalentInfo = function(tabIndex, talentIndex)
+	return "Talent", "icon", 1, 1, mockPoints[tabIndex]
 end
+-- GetTalentTabInfo y GetNumTalentPoints quedaron confirmadas NO fiables en
+-- el cliente real del jugador (ver el comentario en SpecDetector.lua) --
+-- mockeadas acá devolviendo basura a propósito: si el código volviera a
+-- depender de cualquiera de las dos, estos tests lo detectarían.
+_G.GetTalentTabInfo = function() return "tab", "icon", 999 end
+_G.GetNumTalentPoints = function() return 999 end
 _G.UnitClass = function() return "mock", mockClass end
 _G.UnitRace = function() return "mock", "Human" end
 _G.CreateFrame = function() return { RegisterEvent = function() end, SetScript = function() end } end
@@ -22,7 +27,7 @@ local ns = {}
 assert(loadfile("SpecDetector.lua"))("PickItRight", ns)
 
 local function check(class, points, expectedRole, label)
-	mockClass, mockPoints, mockPointsByGroup = class, points, nil
+	mockClass, mockPoints = class, points
 	ns.RefreshCharacterState()
 	assert(ns.context.role == expectedRole,
 		("%s: esperado %s, obtenido %s"):format(label, expectedRole, tostring(ns.context.role)))
@@ -54,51 +59,37 @@ check("WARRIOR", { 20, 20, 0 }, "Melee", "empate exacto entre armas y furia: gan
 check("MAGE", { 0, 0, 0 }, "Caster", "sin puntos de talento gastados, resuelve al primer árbol sin error")
 
 -- Bug real encontrado en juego (cliente TBC Anniversary, no simulable con
--- suposiciones): GetTalentTabInfo puede devolver "" (string vacío) en vez
--- de un número para una pestaña que el cliente todavía no calculó al
+-- suposiciones): el rank de un talento puede llegar como "" (string vacío)
+-- en vez de un número para una pestaña que el cliente todavía no calculó al
 -- momento de PLAYER_ENTERING_WORLD. "" es verdadero en Lua, así que un
 -- simple "or 0" no lo atrapa, y comparar string contra número tira un
--- error duro. tonumber(pointsSpent) or 0 sí lo cubre.
+-- error duro. tonumber(rank) or 0 sí lo cubre.
 check("MAGE", { "", 40, 5 }, "Caster", "pestaña sin calcular todavía (string vacío) no debe romper ni ganar el empate")
 
--- Bug real reportado por el jugador (nivel 63, 10 puntos en Arcano, 44 en
--- Escarcha) pero /pickitright context mostraba 0/0/0, incluso después de
--- pasar el grupo activo como 4º argumento a GetTalentTabInfo (ese fix SÍ
--- detectaba bien el grupo activo, pero GetTalentTabInfo seguía devolviendo
--- 0 puntos). Este es el camino de FALLBACK (sin GetNumTalentPoints
--- disponible) -- fuerza a que ns.context.activeTalentGroup exista y se use
--- correctamente como 4º argumento cuando el camino primario no está.
-_G.GetNumTalentPoints = nil
-mockPointsByGroup = {
-	[1] = { 0, 0, 0 },   -- grupo primario: nunca usado, sin puntos
-	[2] = { 10, 0, 44 }, -- grupo secundario (activo): Arcano 10, Escarcha 44
-}
+-- Bug real reportado por el jugador (nivel 63, 10 Arcano / 0 Fuego / 44
+-- Escarcha reales): dos fixes previos fallaron -- GetTalentTabInfo con el
+-- grupo activo como 4º argumento devolvía 0/0/0, y GetNumTalentPoints(tab)
+-- devolvía el mismo total repetido en las 3 pestañas, ignorando el índice.
+-- Confirmado con /pickitright talents contra el personaje real: sumar el
+-- rank de cada talento individual vía GetTalentInfo SÍ dio 10/0/44 exacto.
+-- Este caso reproduce esa distribución real; GetTalentTabInfo/
+-- GetNumTalentPoints siguen mockeados devolviendo 999 arriba, así que si el
+-- código volviera a usarlos el resultado no daría 10/0/44.
+check("MAGE", { 10, 0, 44 }, "Caster", "distribución real reportada: no debe leer de GetTalentTabInfo/GetNumTalentPoints (mockeados en 999)")
+assert(ns.context.pointsByTab[1] == 10 and ns.context.pointsByTab[2] == 0 and ns.context.pointsByTab[3] == 44,
+	"lee los puntos reales sumando GetTalentInfo por talento, no GetTalentTabInfo/GetNumTalentPoints")
+assert(ns.context.dominantTab == 3, "con 44 en Escarcha, la pestaña dominante es la 3")
+
+-- ns.context.activeTalentGroup sigue expuesto para diagnóstico
+-- (/pickitright context) aunque ya no se necesite para leer puntos --
+-- GetActiveTalentGroup ausente (TBC Classic "normal", sin spec dual) no
+-- debe romper nada.
 _G.GetActiveTalentGroup = function() return 2 end
-mockClass = "MAGE"
 ns.RefreshCharacterState()
-assert(ns.context.dominantTab == 3,
-	("spec dual (fallback): esperaba pestaña 3 (Escarcha) dominante, obtuvo %s"):format(tostring(ns.context.dominantTab)))
-assert(ns.context.pointsByTab[1] == 10 and ns.context.pointsByTab[3] == 44,
-	"spec dual (fallback): lee los puntos del grupo activo (2), no del grupo primario vacío")
-assert(ns.context.activeTalentGroup == 2,
-	"spec dual (fallback): ns.context expone el grupo activo detectado, para diagnóstico (/pickitright context)")
-mockPointsByGroup = nil
+assert(ns.context.activeTalentGroup == 2, "expone el grupo de spec dual activo para diagnóstico")
 
--- Sin GetActiveTalentGroup en el cliente (TBC Classic "normal", sin spec
--- dual) y también sin GetNumTalentPoints: no debe romper, simplemente pasa
--- nil como talentGroup al camino de fallback.
 _G.GetActiveTalentGroup = nil
-check("MAGE", { 5, 0, 40 }, "Caster", "cliente sin spec dual ni GetNumTalentPoints sigue funcionando")
-
--- Bug real de seguimiento: pasar el grupo activo a GetTalentTabInfo detectaba
--- bien el grupo pero seguía leyendo 0 puntos en el cliente real del usuario.
--- GetNumTalentPoints(tabIndex) -- confirmada real y en uso sin argumento de
--- grupo en SharpiesGearJudge -- es el camino PRIMARIO cuando existe, y debe
--- preferirse sobre GetTalentTabInfo aunque ambas estén disponibles.
-_G.GetNumTalentPoints = function(i) return mockPoints[i] end
-_G.GetTalentTabInfo = function() return "tab", "icon", 0 end -- a propósito "roto": si esto se usara, el test fallaría
-check("MAGE", { 10, 0, 44 }, "Caster", "con GetNumTalentPoints disponible, se prefiere sobre GetTalentTabInfo")
-assert(ns.context.pointsByTab[3] == 44,
-	"GetNumTalentPoints es el camino primario: no debe caer a GetTalentTabInfo (que acá devuelve 0 a propósito)")
+check("MAGE", { 10, 0, 44 }, "Caster", "cliente sin spec dual (GetActiveTalentGroup ausente) sigue funcionando")
+assert(ns.context.activeTalentGroup == nil, "sin GetActiveTalentGroup, activeTalentGroup queda nil, no rompe")
 
 print("OK: SpecDetector.lua supera la prueba de humo")

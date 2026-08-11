@@ -46,7 +46,8 @@ local mockClass, mockRace, mockPoints = "MAGE", "Human", { 0, 0, 0 }
 _G.UnitClass = function() return "mock", mockClass end
 _G.UnitRace = function() return "mock", mockRace end
 _G.GetNumTalentTabs = function() return 3 end
-_G.GetTalentTabInfo = function(i) return "tab", "icon", mockPoints[i] end
+_G.GetNumTalents = function() return 1 end
+_G.GetTalentInfo = function(tabIndex) return "Talent", "icon", 1, 1, mockPoints[tabIndex] end
 
 -- Registro único de items simulados, compartido por GetItemInfo y
 -- GetItemStats -- así ambas API ven la misma "verdad" para cada link,

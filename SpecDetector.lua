@@ -54,37 +54,38 @@ local function ScanDominantTalentTree()
 	-- que carga Core_Vanilla.lua, y ESE archivo llama a GetActiveTalentGroup()
 	-- sin condicional (además usa GetNumTalentGroups() == 2 para detectar si
 	-- el dual spec está activo). `type(...) == "function"` en vez de asumir
-	-- que existe: TBC Classic "normal" (sin spec dual) puede no tener esta API.
+	-- que existe: TBC Classic "normal" (sin spec dual) puede no tener esta
+	-- API. Se sigue guardando en ns.context solo para diagnóstico
+	-- (/pickitright context/talents) -- ya NO hace falta para leer puntos,
+	-- ver el comentario de más abajo.
 	local activeGroup = (type(GetActiveTalentGroup) == "function") and GetActiveTalentGroup() or nil
 
+	-- Dos intentos de fix previos, cada uno refutado por el cliente real del
+	-- jugador (nivel 63, 10 Arcano / 44 Escarcha reales):
+	--   1. GetTalentTabInfo(tab, nil, nil, activeGroup): detectaba bien el
+	--      grupo activo pero devolvía 0 puntos en las 3 pestañas.
+	--   2. GetNumTalentPoints(tabIndex): dejó de dar 0, pero devolvía el
+	--      MISMO total (54 = 10+44) repetido en las 3 pestañas -- ignoraba
+	--      el índice de pestaña en este cliente, pese a que
+	--      SharpiesGearJudge (Paladin.lua) lo usa asumiendo valores
+	--      distintos por pestaña.
+	-- Confirmado con /pickitright talents (diagnóstico agregado
+	-- específicamente para esto) contra el personaje real: sumar el rank de
+	-- cada talento individual vía GetTalentInfo(tab, i) SÍ dio 10/0/44,
+	-- exacto. Mismo mecanismo que SharpiesGearJudge usa de verdad para
+	-- GetTalentRank (BuildTalentCache en Dynamic_Engine.lua) -- no hace
+	-- falta ningún argumento de grupo: GetTalentInfo ya refleja el build
+	-- activo por su cuenta.
 	for tabIndex = 1, (GetNumTalentTabs() or 0) do
-		-- Bug real de seguimiento: pasar activeGroup como 4º argumento de
-		-- GetTalentTabInfo (el patrón de LibDualSpec-1.0, ver más abajo)
-		-- detectaba bien el grupo activo (confirmado con /pickitright context)
-		-- pero SEGUÍA devolviendo 0 puntos en las 3 pestañas para un
-		-- personaje real con 10/44 repartidos. GetNumTalentPoints(tabIndex)
-		-- es una API distinta y más simple -- confirmada real y en uso
-		-- (sin argumento de grupo, sin guard alguno) en SharpiesGearJudge
-		-- (Dynamic_Engine.lua MSC:GetDominantTalentTree, y en sus perfiles
-		-- reales de Paladín/Guerrero) -- ya resuelve el grupo activo por su
-		-- cuenta. Se prefiere sobre GetTalentTabInfo cuando existe; si no
-		-- (variante de cliente sin esta API), cae al camino anterior.
-		local pointsSpent
-		if type(GetNumTalentPoints) == "function" then
-			pointsSpent = GetNumTalentPoints(tabIndex)
-		else
-			local _, _, rawPoints = GetTalentTabInfo(tabIndex, nil, nil, activeGroup)
-			pointsSpent = rawPoints
+		local pointsSpent = 0
+		local numTalents = GetNumTalents(tabIndex) or 0
+		for talentIndex = 1, numTalents do
+			local _, _, _, _, rank = GetTalentInfo(tabIndex, talentIndex)
+			-- tonumber(), no "or 0": la misma clase de dato-no-listo-todavía
+			-- que ya se vio con GetTalentTabInfo ("" en vez de número) podría
+			-- darse acá también -- mejor no asumir que rank siempre es numérico.
+			pointsSpent = pointsSpent + (tonumber(rank) or 0)
 		end
-		-- tonumber(), no "or 0": en el cliente TBC Anniversary, la API de
-		-- talentos puede devolver "" (string vacío) en vez de un número para
-		-- una pestaña que el cliente todavía no calculó al momento de
-		-- PLAYER_ENTERING_WORLD (bug real encontrado en juego, no en los
-		-- tests). "" es verdadero en Lua, así que "pointsSpent or 0" lo
-		-- dejaba pasar tal cual, y la comparación de más abajo (número vs
-		-- string) tiraba un error duro que abortaba ANTES de escribir nada
-		-- en ns.context — rompía todo el addon.
-		pointsSpent = tonumber(pointsSpent) or 0
 		pointsByTab[tabIndex] = pointsSpent
 		if pointsSpent > dominantPoints then
 			dominantTab, dominantPoints = tabIndex, pointsSpent
