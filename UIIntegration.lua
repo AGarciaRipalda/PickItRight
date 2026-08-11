@@ -84,12 +84,6 @@ end)
 -- de recompensas de Blizzard tanto al aceptar (QUEST_DETAIL) como al
 -- entregar (QUEST_COMPLETE) una misión — cada botón de recompensa llama
 -- GameTooltip:SetQuestItem(tipo, índice) al mostrar su tooltip.
--- LIMITACIÓN CONOCIDA: no cubre mirar recompensas desde el diario de
--- misiones sin estar frente al NPC (esa vista usa GetQuestLogItemLink/
--- SetQuestLogItem, una API distinta) — no implementado a propósito por no
--- tener verificados esos nombres contra este cliente; mismo criterio que
--- ARMOR_PROFICIENCY/WEAPON_PROFICIENCY en ItemFilter.lua, no repetir el
--- error de nombre de stat sin verificar de la Fase 3 (ver CLAUDE.md).
 hooksecurefunc(GameTooltip, "SetQuestItem", function(tooltip, questItemType, index)
 	if not ns.IsModuleEnabled("UIIntegration") then
 		return
@@ -113,3 +107,23 @@ hooksecurefunc(GameTooltip, "SetBagItem", function(tooltip, bag, slot)
 	AppendAnalysis(tooltip, ns.GetBagItemResult(itemLink))
 	tooltip:Show()
 end)
+
+-- Recompensas de misión desde el DIARIO, sin estar frente al NPC (Fase 9,
+-- ampliación tras investigar el gap que quedaba documentado acá).
+-- GetQuestLogItemLink/SetQuestLogItem confirmados contra SharpiesGearJudge
+-- (TooltipManager.lua, addon real instalado): engancha exactamente este
+-- par junto a SetQuestItem/GetQuestItemLink, con la misma forma.
+-- `if GameTooltip.SetQuestLogItem then` es el mismo guard defensivo que
+-- usa esa fuente — a diferencia de los otros hooks de este archivo (que no
+-- lo tienen), hooksecurefunc sobre un método inexistente rompería la carga
+-- del resto de este archivo, y no hay garantía local de que este método en
+-- particular exista en toda variante de cliente TBC.
+if GameTooltip.SetQuestLogItem then
+	hooksecurefunc(GameTooltip, "SetQuestLogItem", function(tooltip, questItemType, index)
+		if not ns.IsModuleEnabled("UIIntegration") then
+			return
+		end
+		AppendAnalysis(tooltip, ns.GetQuestLogRewardResult(questItemType, index))
+		tooltip:Show()
+	end)
+end

@@ -25,6 +25,9 @@ _G.GetQuestItemLink = function(kind, i)
 	if kind == "reward" then return mockQuestRewards[i] end
 end
 
+local mockQuestLog = { choice = {}, reward = {} } -- [tipo] = array de itemLinks (sin función de conteo real, ver ScanQuestLogKind)
+_G.GetQuestLogItemLink = function(kind, i) return mockQuestLog[kind] and mockQuestLog[kind][i] end
+
 _G.NUM_BAG_SLOTS = 4
 -- Capacidad y contenido separados a propósito: un table constructor con un
 -- "hueco" (nil en medio) deja indefinido qué devuelve el operador # de Lua,
@@ -201,6 +204,44 @@ mockBagItems[2] = { [1] = "item:deberia-ignorarse-bolsa" }
 local evaluateCallsBeforeBagsDisabled = #evaluateCalls
 registeredHandler(nil, "BAG_UPDATE_DELAYED")
 assertEqual(#evaluateCalls, evaluateCallsBeforeBagsDisabled, "caso 19: módulo desactivado no analiza la mochila")
+ns.IsModuleEnabled = function() return true end
+
+-- --- Recompensas de misión desde el diario (QUEST_LOG_UPDATE) ------------
+-- Sin GetNumQuestLogChoices/Rewards verificado (ver comentario en
+-- LootIntegration.lua) -- el escaneo corta en el primer índice sin ítem,
+-- así que estos casos son los que confirman que ESE corte funciona.
+
+-- Caso 20: QUEST_LOG_UPDATE analiza elegibles y garantizadas de la misión
+-- seleccionada, cortando apenas GetQuestLogItemLink devuelve nil.
+mockQuestLog.choice = { "item:logchoiceA" }
+mockQuestLog.reward = { "item:logrewardA", "item:logrewardB" }
+local evaluateCallsBeforeQuestLog = #evaluateCalls
+registeredHandler(nil, "QUEST_LOG_UPDATE")
+assertEqual(ns.GetQuestLogRewardResult("choice", 1).itemLink, "item:logchoiceA", "caso 20: choice 1 del diario analizado")
+assertEqual(ns.GetQuestLogRewardResult("reward", 1).itemLink, "item:logrewardA", "caso 20: reward 1 del diario analizado")
+assertEqual(ns.GetQuestLogRewardResult("reward", 2).itemLink, "item:logrewardB", "caso 20: reward 2 del diario analizado")
+assertEqual(ns.GetQuestLogRewardResult("reward", 3), nil, "caso 20: no sigue de largo después del último ítem real")
+assertEqual(#evaluateCalls, evaluateCallsBeforeQuestLog + 3, "caso 20: se evaluaron exactamente 3, no MAX_QUEST_LOG_REWARDS")
+
+-- Caso 21: questLogResults es una tabla separada de questResults (misma
+-- clave "reward:1", pero namespaces distintos) -- no deben pisarse.
+assertEqual(ns.GetQuestRewardResult("reward", 1).itemLink, "item:rewardA_nueva_mision",
+	"caso 21: el diario no pisó el resultado de la ventana de aceptar/entregar bajo la misma clave")
+
+-- Caso 22: cambiar de misión seleccionada en el diario (mismo índice,
+-- ítem distinto) sí re-evalúa -- mismo criterio de dedupe que las otras
+-- fuentes de recompensas.
+mockQuestLog.reward = { "item:logrewardA_otra_mision" }
+registeredHandler(nil, "QUEST_LOG_UPDATE")
+assertEqual(ns.GetQuestLogRewardResult("reward", 1).itemLink, "item:logrewardA_otra_mision",
+	"caso 22: misión distinta seleccionada, se re-evalúa con el ítem nuevo")
+
+-- Caso 23: módulo desactivado -- tampoco escanea el diario de misiones.
+ns.IsModuleEnabled = function() return false end
+mockQuestLog.choice = { "item:deberia-ignorarse-diario" }
+local evaluateCallsBeforeQuestLogDisabled = #evaluateCalls
+registeredHandler(nil, "QUEST_LOG_UPDATE")
+assertEqual(#evaluateCalls, evaluateCallsBeforeQuestLogDisabled, "caso 23: módulo desactivado no analiza el diario de misiones")
 ns.IsModuleEnabled = function() return true end
 
 print("OK: LootIntegration.lua supera la prueba de humo")

@@ -18,6 +18,7 @@ local GameTooltip = {
 	SetLootRollItem = function() end,
 	SetQuestItem = function() end,
 	SetBagItem = function() end,
+	SetQuestLogItem = function() end, -- presente en el mock: prueba el camino donde SÍ existe (ver el guard en UIIntegration.lua)
 	AddLine = function(self, text) table.insert(self.lines, text) end,
 	Show = function() end,
 }
@@ -34,10 +35,12 @@ local mockLootResults = {} -- [itemLink] = entry
 local mockRollResults = {} -- [rollID] = entry
 local mockQuestResults = {} -- ["tipo:índice"] = entry
 local mockBagResults = {} -- [itemLink] = entry
+local mockQuestLogResults = {} -- ["tipo:índice"] = entry
 ns.GetLootResult = function(itemLink) return mockLootResults[itemLink] end
 ns.GetRollResult = function(rollID) return mockRollResults[rollID] end
 ns.GetQuestRewardResult = function(kind, i) return mockQuestResults[kind .. ":" .. i] end
 ns.GetBagItemResult = function(itemLink) return mockBagResults[itemLink] end
+ns.GetQuestLogRewardResult = function(kind, i) return mockQuestLogResults[kind .. ":" .. i] end
 
 local moduleEnabled = true -- normalmente de AddonSettings.lua (Fase 8)
 ns.IsModuleEnabled = function() return moduleEnabled end
@@ -113,6 +116,17 @@ GameTooltip:SetBagItem(0, 2) -- slot vacío, GetContainerItemLink devuelve nil
 assertEqual(#GameTooltip.lines, lineCountBeforeEmptySlot,
 	"mochila: slot vacío no agrega ninguna línea (corta antes de llegar a AppendAnalysis)")
 
+-- --- Hook de recompensas de misión desde el diario (SetQuestLogItem) -----
+
+mockQuestLogResults["reward:1"] = { result = { eligible = true, isUpgrade = true, score = 30 } }
+GameTooltip:SetQuestLogItem("reward", 1)
+assert(lastLine():find("|cff33ff33"), "diario: recompensa elegible en verde")
+
+-- El diario y la ventana de aceptar/entregar leen tablas SEPARADAS aunque
+-- compartan el mismo formato de clave -- confirma que no se pisan.
+assertEqual(mockQuestResults["reward:1"].result.eligible, false,
+	"diario: la tabla de SetQuestItem sigue con su propio resultado, sin pisarse")
+
 -- --- Fase 8: /pickitright module UIIntegration off ----------------------------
 
 moduleEnabled = false
@@ -121,6 +135,7 @@ GameTooltip:SetLootItem(1)
 GameTooltip:SetLootRollItem(99)
 GameTooltip:SetQuestItem("choice", 1)
 GameTooltip:SetBagItem(0, 1)
+GameTooltip:SetQuestLogItem("reward", 1)
 assertEqual(#GameTooltip.lines, lineCountBefore, "módulo desactivado: no agrega ninguna línea nueva")
 moduleEnabled = true
 

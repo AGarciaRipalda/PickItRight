@@ -36,6 +36,15 @@ local questResults = {}
 -- a consultar, igual que con questResults).
 local bagResults = {}
 
+-- {["tipo:índice"] = {itemLink=, result=}} -- recompensas de la misión
+-- ACTUALMENTE SELECCIONADA en el diario de misiones, sin estar frente al
+-- NPC (Fase 9, ampliación tras investigar el gap documentado). Tabla
+-- separada de questResults a propósito, no comparten claves: el diario y
+-- la pantalla de aceptar/entregar pueden referirse a misiones distintas
+-- al mismo tiempo, y mezclarlas arriesgaría mostrar el resultado de una
+-- misión en el tooltip de otra.
+local questLogResults = {}
+
 local function ClearTable(t)
 	for k in pairs(t) do
 		t[k] = nil
@@ -154,6 +163,54 @@ local function ScanBags()
 	end
 end
 
+--[[
+Investigación de la limitación de la Fase 9 (recompensas de misión desde
+el diario, sin estar frente al NPC): verificado que GetQuestLogItemLink y
+GameTooltip:SetQuestLogItem SÍ existen y funcionan igual que
+GetQuestItemLink/SetQuestItem — confirmado contra SharpiesGearJudge
+(TooltipManager.lua, addon real e instalado en esta máquina), que engancha
+exactamente ese par junto al que ya usábamos, con la misma forma
+(tipo, índice).
+
+Lo que NO se pudo verificar: el equivalente a GetNumQuestChoices/
+GetNumQuestRewards para el diario. Ninguno de los addons reales
+instalados (SharpiesGearJudge, LibExtraTip, Auctionator, Scrap, Questie)
+llama a una función tipo "GetNumQuestLogChoices/Rewards" sin questID —
+Questie es el único que cuenta recompensas de misión, y lo hace con un
+questID explícito (GetNumQuestLogRewards(questId)), que resuelve una
+misión por ID, no "la seleccionada ahora en el diario" que es lo que acá
+hace falta. Portar ese nombre a un conteo implícito sería exactamente el
+mismo error que el bug de nombre de stat sin verificar de la Fase 3 (ver
+CLAUDE.md) — así que en vez de adivinar el nombre, se itera con un tope
+defensivo y se corta en el primer índice sin ítem. GetQuestLogItemLink SÍ
+está confirmado, y se asume el mismo comportamiento "nil = no hay más"
+que ya tiene su contraparte GetQuestItemLink (mismo autor, mismo patrón,
+en SharpiesGearJudge).
+]]
+local MAX_QUEST_LOG_REWARDS = 10 -- tope defensivo, ninguna misión de TBC se acerca a esto
+
+local function ScanQuestLogKind(kind)
+	for i = 1, MAX_QUEST_LOG_REWARDS do
+		local itemLink = GetQuestLogItemLink(kind, i)
+		if not itemLink then
+			break
+		end
+
+		local key = kind .. ":" .. i
+		local existing = questLogResults[key]
+		if not existing or existing.itemLink ~= itemLink then
+			AnalyzeAndStore(itemLink, function(result)
+				questLogResults[key] = { itemLink = itemLink, result = result }
+			end)
+		end
+	end
+end
+
+local function ScanQuestLogRewards()
+	ScanQuestLogKind("choice")
+	ScanQuestLogKind("reward")
+end
+
 local frame = CreateFrame("Frame")
 frame:RegisterEvent("LOOT_OPENED")
 frame:RegisterEvent("LOOT_CLOSED")
@@ -162,6 +219,7 @@ frame:RegisterEvent("CONFIRM_LOOT_ROLL")
 frame:RegisterEvent("QUEST_DETAIL")
 frame:RegisterEvent("QUEST_COMPLETE")
 frame:RegisterEvent("BAG_UPDATE_DELAYED")
+frame:RegisterEvent("QUEST_LOG_UPDATE")
 frame:SetScript("OnEvent", function(_, event, ...)
 	-- Fase 8: /pickitright module LootIntegration off. No se puede des-registrar
 	-- el frame en caliente, así que el apagado vive acá, al principio de
@@ -181,6 +239,8 @@ frame:SetScript("OnEvent", function(_, event, ...)
 		ScanQuestRewards()
 	elseif event == "BAG_UPDATE_DELAYED" then
 		ScanBags()
+	elseif event == "QUEST_LOG_UPDATE" then
+		ScanQuestLogRewards()
 	end
 end)
 
@@ -192,6 +252,7 @@ ns.currentLootResults = lootResults
 ns.currentRollResults = rollResults
 ns.currentQuestResults = questResults
 ns.currentBagResults = bagResults
+ns.currentQuestLogResults = questLogResults
 
 function ns.GetLootResult(itemLink)
 	local itemString = ns.GetItemString(itemLink)
@@ -209,4 +270,8 @@ end
 function ns.GetBagItemResult(itemLink)
 	local itemString = ns.GetItemString(itemLink)
 	return itemString and bagResults[itemString]
+end
+
+function ns.GetQuestLogRewardResult(questItemType, index)
+	return questLogResults[questItemType .. ":" .. index]
 end
