@@ -9,45 +9,55 @@ espadas, Rogue sin armas a dos manos) — verificar cada fila contra el
 cliente (intentar equipar) o una fuente de theorycrafting actualizada
 antes de confiar en ellas para bloquear recomendaciones reales.
 
-ARMOR_PROFICIENCY y WEAPON_PROFICIENCY siguen SIN verificar: se revisaron
-dos addons TBC reales instalados en esta máquina (SharpiesGearJudge,
-gear-scoring; Gargul, loot) y NINGUNO mantiene una tabla propia como esta
-— ambos delegan la pregunta "¿puede este personaje usar este ítem?" al
-cliente (`IsEquippableItem`/`IsUsableItem` o un wrapper propio sobre esas
-mismas funciones). Esa es probablemente la forma más robusta de resolver
-esto (cero riesgo de tabla desactualizada), pero no reemplacé estas tablas
-por esa llamada porque no verifiqué la semántica exacta de esas API en
-este cliente (si `IsEquippableItem` realmente refleja proficiencia de
-arma/armadura específica del personaje, o solo "es un objeto equipable en
-general") — cambiarlo sin confirmarlo sería cambiar un supuesto sin
-verificar por otro. Candidato claro para la próxima verificación.
+WEAPON_PROFICIENCY sigue SIN verificar: se revisaron dos addons TBC reales
+instalados en esta máquina (SharpiesGearJudge, gear-scoring; Gargul, loot)
+y ninguno mantiene una tabla de armas propia como esta — ambos delegan la
+pregunta "¿puede este personaje usar este ítem?" al cliente
+(`IsEquippableItem` o un wrapper propio). No reemplacé esta tabla por esa
+llamada porque no verifiqué la semántica exacta de armas específicamente
+— candidato para la próxima verificación.
+
+ARMOR_PROFICIENCY (más abajo, GetMaxArmorTier) SÍ se reemplazó, tras un
+bug real reportado: un Paladín tanque de nivel 10 (rol/pestaña dominante
+detectados bien, confirmado con /pickitright context) veía CUALQUIER
+pieza de Cuero rechazada como "Tipo de armadura incorrecto, tu clase usa
+Plate" — cierto a nivel 70, pero Guerrero/Paladín no entrenan Plate hasta
+nivel 40 (antes de eso, su máximo real es Malla), y el filtro exigía
+coincidencia EXACTA con el máximo de nivel 70 en vez de "como máximo lo
+que ya sabés usar". Verificado el mecanismo real y los umbrales exactos
+contra `SharpiesGearJudge` (`Helpers.lua`, `MSC.IsItemUsable`): compara
+`subClassID > maxArmor` (como máximo, no exacto), con
+Guerrero/Paladín = Malla(3) hasta nivel 40 y Plate(4) desde ahí,
+Chamán/Cazador = Cuero(2) hasta nivel 40 y Malla(3) desde ahí.
 ]]
 
--- Proficiencia máxima de armadura por clase. Solo importa para los slots
--- de ARMOR_MATERIAL_SLOTS (abajo) — a nivel 70 de raideo, cualquier pieza
--- por debajo del máximo de la clase es casi siempre un downgrade de stats,
--- así que se exige coincidencia exacta, no "como máximo". Esto no sirve
--- para gearing de leveo temprano, donde la armadura del tipo máximo puede
--- no estar disponible todavía — limitación conocida, no un bug.
-local ARMOR_PROFICIENCY = {
-	WARRIOR = "Plate",
-	PALADIN = "Plate",
-	HUNTER  = "Mail",
-	SHAMAN  = "Mail",
-	ROGUE   = "Leather",
-	DRUID   = "Leather",
-	PRIEST  = "Cloth",
-	MAGE    = "Cloth",
-	WARLOCK = "Cloth",
-}
-
--- itemSubClassID (classID=4 Armor) -> nombre de material.
+-- itemSubClassID (classID=4 Armor) -> nombre de material, para el mensaje
+-- de rechazo. [0] "Miscellaneous" no es un material real (anillos,
+-- trinkets, reliquias) — nunca debería consultarse para estos slots, ver
+-- ARMOR_MATERIAL_SLOTS abajo.
 local ARMOR_SUBCLASS_TO_MATERIAL = {
 	[1] = "Cloth",
 	[2] = "Leather",
 	[3] = "Mail",
 	[4] = "Plate",
 }
+
+--- Nivel de armadura máximo que la clase puede EQUIPAR ahora mismo (no el
+--- máximo teórico de nivel 70). Guerrero/Paladín y Chamán/Cazador
+--- entrenan su material superior recién a nivel 40 — antes de eso, quedan
+--- en el nivel anterior. nil si la clase no está mapeada (no bloquea nada).
+local function GetMaxArmorTier(class, level)
+	if class == "WARRIOR" or class == "PALADIN" then
+		return (level >= 40) and 4 or 3
+	elseif class == "HUNTER" or class == "SHAMAN" then
+		return (level >= 40) and 3 or 2
+	elseif class == "ROGUE" or class == "DRUID" then
+		return 2
+	elseif class == "PRIEST" or class == "MAGE" or class == "WARLOCK" then
+		return 1
+	end
+	return nil
+end
 
 -- Slots donde el material de la armadura importa. La Capa (INVTYPE_CLOAK)
 -- queda fuera A PROPÓSITO: en WoW TODAS las capas tienen itemSubType
@@ -181,10 +191,11 @@ local function IsEligible(itemLink, itemStats)
 	end
 
 	if ARMOR_MATERIAL_SLOTS[itemEquipLoc] then
-		local requiredMaterial = ARMOR_PROFICIENCY[class]
-		local itemMaterial = ARMOR_SUBCLASS_TO_MATERIAL[subclassID]
-		if requiredMaterial and itemMaterial and itemMaterial ~= requiredMaterial then
-			return false, ("Tipo de armadura incorrecto (%s, tu clase usa %s)"):format(itemMaterial, requiredMaterial)
+		local maxTier = GetMaxArmorTier(class, UnitLevel("player"))
+		if maxTier and subclassID and subclassID > maxTier then
+			local itemMaterial = ARMOR_SUBCLASS_TO_MATERIAL[subclassID] or "?"
+			local maxMaterial = ARMOR_SUBCLASS_TO_MATERIAL[maxTier] or "?"
+			return false, ("Tipo de armadura incorrecto (%s, todavía no entrenás %s)"):format(itemMaterial, maxMaterial)
 		end
 	end
 

@@ -14,6 +14,12 @@ _G.GetItemInfo = function(link)
 	return item.name, link, 1, 70, 1, "Armor", "Mock", 1, item.equipLoc, "icon", 100, item.classID, item.subclassID
 end
 
+-- Nivel 70 por defecto: máximo de armadura de todas las clases ya
+-- entrenado, así los casos existentes (pensados para raideo) no necesitan
+-- tocar mockLevel. El caso de leveo temprano (más abajo) lo cambia a mano.
+local mockLevel = 70
+_G.UnitLevel = function() return mockLevel end
+
 local equipmentFrame
 _G.CreateFrame = function()
 	local frame = { RegisterEvent = function() end }
@@ -215,5 +221,28 @@ local callsBeforeEquip = scoreCallCount
 equipmentFrame.handler() -- simula PLAYER_EQUIPMENT_CHANGED
 local afterEquip = ns.EvaluateItem("cacheItem", { SCORE = 10 }, {}, {})
 assert(scoreCallCount > callsBeforeEquip, "caso 22: cambiar de equipo invalida el cache aunque spec/fase/overrides no cambien")
+
+-- --- Caso 23-25 (bug real): proficiencia de armadura por NIVEL, no por --
+-- máximo teórico de nivel 70 -- reportado por un Paladín tanque real de
+-- nivel 10: toda pieza de Cuero (lo único usable a ese nivel, Malla/Plate
+-- ni entrenados) se rechazaba como "tu clase usa Plate".
+mockItems.leatherLegs = { name = "Calzas de Cuero", equipLoc = "INVTYPE_LEGS", classID = 4, subclassID = 2 }
+mockItems.mailLegs = { name = "Calzas de Malla", equipLoc = "INVTYPE_LEGS", classID = 4, subclassID = 3 }
+mockItems.plateLegs = { name = "Calzas de Placas", equipLoc = "INVTYPE_LEGS", classID = 4, subclassID = 4 }
+ns.context = { class = "PALADIN", role = "Tank" }
+ns.GetActiveWeightProfile = function() return { ITEM_MOD_STAMINA_SHORT = 1.0 } end
+
+mockLevel = 10
+eligible = ns.IsEligible("leatherLegs", { ITEM_MOD_STAMINA_SHORT = 10 })
+assertEqual(eligible, true, "caso 23: Paladín nivel 10 SÍ puede usar Cuero (Plate/Malla ni entrenados todavía)")
+
+eligible, reason = ns.IsEligible("plateLegs", { ITEM_MOD_STAMINA_SHORT = 10 })
+assertEqual(eligible, false, "caso 24: Paladín nivel 10 NO puede usar Plate (se entrena recién a nivel 40)")
+assert(reason:find("armadura"), "caso 24: motivo debe mencionar el tipo de armadura")
+
+mockLevel = 40
+eligible = ns.IsEligible("plateLegs", { ITEM_MOD_STAMINA_SHORT = 10 })
+assertEqual(eligible, true, "caso 25: Paladín nivel 40 SÍ puede usar Plate")
+mockLevel = 70
 
 print("OK: ItemFilter.lua supera la prueba de humo")

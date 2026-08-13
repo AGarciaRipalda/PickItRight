@@ -45,6 +45,7 @@ end
 local mockClass, mockRace, mockPoints = "MAGE", "Human", { 0, 0, 0 }
 _G.UnitClass = function() return "mock", mockClass end
 _G.UnitRace = function() return "mock", mockRace end
+_G.UnitLevel = function() return 70 end
 _G.GetNumTalentTabs = function() return 3 end
 _G.GetNumTalents = function() return 1 end
 _G.GetTalentInfo = function(tabIndex) return "Talent", "icon", 1, 1, mockPoints[tabIndex] end
