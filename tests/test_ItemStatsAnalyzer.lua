@@ -215,4 +215,27 @@ local noTooltipResult
 ns.RequestItemStats(noTooltipItem, function(stats) noTooltipResult = stats end)
 assertEqual(noTooltipResult.ITEM_MOD_AGILITY_SHORT, 3, "caso 10: sin líneas de tooltip, solo GetItemStats, sin error")
 
+-- Caso 11 (bug real): GetItemStats() devuelve el Armor base del ítem bajo
+-- la clave "RESISTANCE0_NAME" en este cliente, no ITEM_MOD_ARMOR_SHORT --
+-- confirmado contra SharpiesGearJudge (Database.lua, MSC.ShortNames). Sin
+-- remapearla, el peso de Armadura de Paladín Protección (StatScorer.lua)
+-- nunca aplicaba: reportado por un usuario cuya capa (solo Armor, nada
+-- más) puntuaba 0.0 y salía "No es mejora" contra un slot vacío.
+local armorCloak = "item:70007:0:0:0:0:0:0:0:70:0:0"
+loadedItems[armorCloak] = true
+statsByLink[armorCloak] = { RESISTANCE0_NAME = 15 }
+local armorResult
+ns.RequestItemStats(armorCloak, function(stats) armorResult = stats end)
+assertEqual(armorResult.ITEM_MOD_ARMOR_SHORT, 15, "caso 11: RESISTANCE0_NAME se remapea a ITEM_MOD_ARMOR_SHORT")
+assertEqual(armorResult.RESISTANCE0_NAME, nil, "caso 11: la clave cruda no debe quedar duplicada")
+
+-- Caso 12: si el ítem YA trae ITEM_MOD_ARMOR_SHORT (poco común, pero no
+-- debe perderse) y ADEMÁS RESISTANCE0_NAME, se suman en vez de pisarse.
+local doubleArmorItem = "item:70008:0:0:0:0:0:0:0:70:0:0"
+loadedItems[doubleArmorItem] = true
+statsByLink[doubleArmorItem] = { ITEM_MOD_ARMOR_SHORT = 10, RESISTANCE0_NAME = 15 }
+local doubleArmorResult
+ns.RequestItemStats(doubleArmorItem, function(stats) doubleArmorResult = stats end)
+assertEqual(doubleArmorResult.ITEM_MOD_ARMOR_SHORT, 25, "caso 12: RESISTANCE0_NAME se suma sobre un ITEM_MOD_ARMOR_SHORT ya existente")
+
 print("OK: ItemStatsAnalyzer.lua supera la prueba de humo")

@@ -172,11 +172,32 @@ local function AddEquipEffectStats(itemLink, stats)
 	end
 end
 
+-- Bug real de GetItemStats() en este cliente: el valor de Armadura base del
+-- ítem viene bajo la clave literal "RESISTANCE0_NAME" (índice de escuela 0 =
+-- Física/Armadura en el enum interno de WoW), no bajo ITEM_MOD_ARMOR_SHORT.
+-- Confirmado real, no adivinado: SharpiesGearJudge (Database.lua,
+-- MSC.ShortNames) mapea exactamente esa clave a "Armor" para mostrarla en su
+-- UI -- y solo esa, ninguna RESISTANCE1_NAME..6_NAME (las resistencias
+-- elementales sí llegan con su ITEM_MOD_X_RESISTANCE_SHORT normal). Sin este
+-- remap, el peso de Armadura que algunos perfiles sí tienen (ej. Paladín
+-- Protección, 0.12, StatScorer.lua) nunca se aplicaba: la clave cruda no
+-- coincidía con ningún ITEM_MOD_X del perfil, puntuaba 0 en silencio -- bug
+-- real reportado por un usuario (Paladín tanque, capa con solo Armadura
+-- marcada "No es mejora" contra un slot vacío).
+local function NormalizeArmorKey(stats)
+	local armorFromResistance0 = stats["RESISTANCE0_NAME"]
+	if armorFromResistance0 then
+		stats["ITEM_MOD_ARMOR_SHORT"] = (stats["ITEM_MOD_ARMOR_SHORT"] or 0) + armorFromResistance0
+		stats["RESISTANCE0_NAME"] = nil
+	end
+end
+
 -- GetItemStats devuelve una tabla plana {ITEM_MOD_X = valor} para los
 -- stats crudos del ítem; AddEquipEffectStats suma encima los bonos de
 -- "Equip: X" que GetItemStats no ve (ver el comentario grande arriba).
 local function ExtractStats(itemLink)
 	local stats = GetItemStats(itemLink) or {}
+	NormalizeArmorKey(stats)
 	AddEquipEffectStats(itemLink, stats)
 	return stats
 end
