@@ -75,12 +75,43 @@ assert(noComparisonLine:find("|cff999999"), "gris: color cuando no hay comparaci
 assert(noComparisonLine:find("Elegible"), "gris: rotulado como elegible, no mejora/no-mejora")
 assert(not noComparisonLine:find("7%.0"), "gris: NO incluye el score")
 
+-- --- FormatContextLine: segunda línea "Por: <stat>" solo para "Equípatelo" ---
+-- Pedido explícito: además del veredicto, indicar qué stat concreto explica
+-- la mejora y para qué sirve -- sin volver a mostrar el score.
+
+local statLine = ns.FormatContextLine({ isUpgrade = true, topStat = "ITEM_MOD_SPELL_CRIT_RATING_SHORT" })
+assert(statLine, "topStat mapeado en una mejora: sí genera segunda línea")
+assert(statLine:find("Por:"), "segunda línea: empieza con 'Por:'")
+assert(statLine:find("Crítico de Hechizos"), "segunda línea: nombra el stat en español")
+
+assertEqual(ns.FormatContextLine({ isUpgrade = false, topStat = "ITEM_MOD_SPELL_CRIT_RATING_SHORT" }), nil,
+	"sin mejora (isUpgrade=false), no hay segunda línea aunque topStat venga seteado")
+assertEqual(ns.FormatContextLine({ isUpgrade = nil, topStat = "ITEM_MOD_SPELL_CRIT_RATING_SHORT" }), nil,
+	"sin comparación posible (isUpgrade=nil), no hay segunda línea")
+assertEqual(ns.FormatContextLine({ isUpgrade = true, topStat = nil }), nil,
+	"mejora sin topStat calculado, no hay segunda línea")
+assertEqual(ns.FormatContextLine({ isUpgrade = true, topStat = "ITEM_MOD_STAT_INVENTADO" }), nil,
+	"topStat sin mapear en STAT_CONTEXT, no hay segunda línea (no inventa texto)")
+
 -- --- Hook de la ventana de loot (SetLootItem) -----------------------------
 
 mockLootLinks[1] = "item:1"
 mockLootResults["item:1"] = { result = { eligible = true, isUpgrade = true, score = 15 } }
 GameTooltip:SetLootItem(1)
 assert(lastLine():find("|cff33ff33"), "loot: item elegible y mejora sale en verde")
+
+-- Con topStat mapeado, AppendAnalysis agrega una SEGUNDA línea explicando
+-- el veredicto -- confirma la integración completa (ItemFilter.lua calcula
+-- topStat -> UIIntegration.lua lo muestra), no solo la función pura de arriba.
+mockLootLinks[4] = "item:4"
+mockLootResults["item:4"] = {
+	result = { eligible = true, isUpgrade = true, score = 20, topStat = "ITEM_MOD_SPELL_CRIT_RATING_SHORT" },
+}
+local linesBeforeCritHelm = #GameTooltip.lines
+GameTooltip:SetLootItem(4)
+assertEqual(#GameTooltip.lines, linesBeforeCritHelm + 2, "loot con topStat: agrega veredicto + segunda línea explicativa")
+assert(lastLine():find("Por:") and lastLine():find("Crítico de Hechizos"),
+	"loot con topStat: la segunda línea explica qué stat impulsa la mejora")
 
 mockLootLinks[2] = "item:2"
 mockLootResults["item:2"] = { result = { eligible = false, reason = "Tipo de armadura incorrecto" } }

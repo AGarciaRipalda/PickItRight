@@ -268,6 +268,10 @@ local EQUIP_SLOTS = {
 ---              mapear en EQUIP_SLOTS)
 ---   equippedScore: el score de lo peor de lo equipado en ese slot (0 si
 ---              el slot está vacío), o nil junto con isUpgrade=nil
+---   equippedStats: la tabla de stats de ESE slot (peor de los dos si es
+---              simétrico), {} si el slot está vacío -- la usa
+---              GetTopContributingStat para explicar el veredicto sin
+---              tener que recorrer bySlot de nuevo.
 --- `bySlot` es el segundo valor de ns.GetEquippedSnapshot() (Fase 2).
 local function ComputeUpgradeInfo(itemLink, score, weightProfile, currentStats, bySlot)
 	if not bySlot then
@@ -280,16 +284,41 @@ local function ComputeUpgradeInfo(itemLink, score, weightProfile, currentStats, 
 		return nil, nil
 	end
 
-	local worstEquippedScore
+	local worstEquippedScore, worstEquippedStats
 	for _, slotName in ipairs(slots) do
 		local equipped = bySlot[slotName]
 		local equippedScore = equipped and ns.ScoreStats(equipped.stats, weightProfile, currentStats) or 0
 		if not worstEquippedScore or equippedScore < worstEquippedScore then
 			worstEquippedScore = equippedScore
+			worstEquippedStats = equipped and equipped.stats or {}
 		end
 	end
 
-	return score > worstEquippedScore, worstEquippedScore
+	return score > worstEquippedScore, worstEquippedScore, worstEquippedStats
+end
+
+--- Entre los stats que el perfil activo pondera, cuál es el que más
+--- explica por qué el candidato ganó (o no) contra lo equipado -- el de
+--- mayor `(candidato - equipado) * peso`. Pensado para UIIntegration.lua:
+--- mostrar "Por: +Crítico de Hechizos" es más útil que un score sin
+--- contexto, sin volver a mostrar el número de score en sí (pedido
+--- explícito de una fase anterior). nil si ningún stat ponderado mejora
+--- (ej. la mejora viene solo de stats sin peso, o no hay con qué comparar).
+local function GetTopContributingStat(itemStats, equippedStats, weightProfile)
+	if not itemStats or not equippedStats or not weightProfile then
+		return nil
+	end
+
+	local topStat, topContribution = nil, 0
+	for statKey, weight in pairs(weightProfile) do
+		local delta = (itemStats[statKey] or 0) - (equippedStats[statKey] or 0)
+		local contribution = delta * weight
+		if contribution > topContribution then
+			topStat, topContribution = statKey, contribution
+		end
+	end
+
+	return topStat
 end
 
 --[[
@@ -383,12 +412,13 @@ local function EvaluateItem(itemLink, itemStats, currentStats, bySlot)
 	local eligible, reason = IsEligible(itemLink, itemStats)
 	local result
 	if not eligible then
-		result = { eligible = false, reason = reason, score = nil, isUpgrade = nil, equippedScore = nil }
+		result = { eligible = false, reason = reason, score = nil, isUpgrade = nil, equippedScore = nil, topStat = nil }
 	else
 		local weightProfile = ns.GetActiveWeightProfile()
 		local score = ns.ScoreStats(itemStats, weightProfile, currentStats)
-		local isUpgrade, equippedScore = ComputeUpgradeInfo(itemLink, score, weightProfile, currentStats, bySlot)
-		result = { eligible = true, reason = nil, score = score, isUpgrade = isUpgrade, equippedScore = equippedScore }
+		local isUpgrade, equippedScore, equippedStats = ComputeUpgradeInfo(itemLink, score, weightProfile, currentStats, bySlot)
+		local topStat = isUpgrade and GetTopContributingStat(itemStats, equippedStats, weightProfile) or nil
+		result = { eligible = true, reason = nil, score = score, isUpgrade = isUpgrade, equippedScore = equippedScore, topStat = topStat }
 	end
 
 	if reason ~= REASON_NOT_LOADED then

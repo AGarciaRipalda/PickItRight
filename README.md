@@ -10,11 +10,11 @@ Asistente de decisiones de equipo en tiempo real para **World of Warcraft: Burni
 - Puntúa cada ítem contra un perfil de pesos por clase y especialización (Fase 1 de contenido: Kara/Gruul/Magtheridon), fuente real de theorycrafting, no números inventados.
 - Compara contra lo que ya tenés equipado en ese slot — no solo el puntaje absoluto del ítem.
 - Muestra el veredicto directo en la ventana de loot, en las tiradas Need/Greed de grupo, en la pantalla de recompensas de misión (al aceptar, al entregar, o mirándolas desde el diario sin estar frente al NPC), y también al pasar el cursor sobre cualquier ítem que ya tengas en la mochila:
-  - 🟢 **Equípatelo** — supera lo que tenés puesto.
+  - 🟢 **Equípatelo** — supera lo que tenés puesto, con una segunda línea indicando qué stat concreto explica la mejora y para qué sirve (ej. "Por: +Crítico de Hechizos (ráfagas de daño más altas)").
   - ⚪ **No es mejora** / **Elegible** (sin datos suficientes para comparar).
   - 🔴 **Rechazado**, con el motivo exacto (tipo de armadura incorrecto, arma no entrenada, stats incompatibles con tu rol, etc.).
 
-No muestra el puntaje numérico, solo el veredicto.
+No muestra el puntaje numérico, solo el veredicto (y, en una mejora, qué stat la explica).
 
 ## Instalación
 

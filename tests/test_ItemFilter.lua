@@ -245,4 +245,33 @@ eligible = ns.IsEligible("plateLegs", { ITEM_MOD_STAMINA_SHORT = 10 })
 assertEqual(eligible, true, "caso 25: Paladín nivel 40 SÍ puede usar Plate")
 mockLevel = 70
 
+-- --- Caso 26-28: topStat -- qué stat explica un "Equípatelo" -------------
+-- ns.ScoreStats se reemplaza por una réplica simple del scoring real
+-- (suma stat*peso), a diferencia del stub de SCORE=1 usado más arriba,
+-- para que GetTopContributingStat tenga stats reales de qué elegir.
+ns.ScoreStats = function(stats, profile)
+	local total = 0
+	for statKey, weight in pairs(profile) do
+		total = total + (stats[statKey] or 0) * weight
+	end
+	return total
+end
+ns.context = { class = "MAGE", role = "Caster" }
+ns.GetActiveWeightProfile = function()
+	return { ITEM_MOD_SPELL_CRIT_RATING_SHORT = 0.6, ITEM_MOD_INTELLECT_SHORT = 0.5 }
+end
+
+mockItems.critHelm = { name = "Yelmo de Crítico", equipLoc = "INVTYPE_HEAD", classID = 4, subclassID = 1 }
+local equippedHelm = { HeadSlot = { link = "oldHelm", stats = { ITEM_MOD_INTELLECT_SHORT = 20 } } }
+
+result = ns.EvaluateItem("critHelm", { ITEM_MOD_SPELL_CRIT_RATING_SHORT = 23, ITEM_MOD_INTELLECT_SHORT = 3 }, {}, equippedHelm)
+assertEqual(result.isUpgrade, true, "caso 26: mejora real bajo pesos reales (más crítico compensa menos intelecto)")
+assertEqual(result.topStat, "ITEM_MOD_SPELL_CRIT_RATING_SHORT",
+	"caso 26: topStat identifica el crítico como el stat que más explica la mejora")
+
+mockItems.dullHelm = { name = "Yelmo Sin Gracia", equipLoc = "INVTYPE_HEAD", classID = 4, subclassID = 1 }
+result = ns.EvaluateItem("dullHelm", { ITEM_MOD_INTELLECT_SHORT = 1 }, {}, equippedHelm)
+assertEqual(result.isUpgrade, false, "caso 27: claramente peor que lo equipado")
+assertEqual(result.topStat, nil, "caso 27: sin mejora, no se expone topStat")
+
 print("OK: ItemFilter.lua supera la prueba de humo")

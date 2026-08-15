@@ -39,6 +39,62 @@ end
 
 ns.FormatScoreLine = FormatScoreLine
 
+--- Nombre corto en español + en qué situación importa, para el stat que más
+--- explica un veredicto "Equípatelo" (ns.result.topStat, calculado en
+--- ItemFilter.lua/GetTopContributingStat). No pretende cubrir cada
+--- ITEM_MOD_X del juego, solo los que aparecen en algún WEIGHT_PROFILES
+--- real (StatScorer.lua) — agregar una fila acá sin peso en ningún perfil
+--- no serviría para nada, nunca se elegiría como top stat.
+local STAT_CONTEXT = {
+	ITEM_MOD_SPELL_CRIT_RATING_SHORT = { "Crítico de Hechizos", "ráfagas de daño más altas" },
+	ITEM_MOD_CRIT_RATING_SHORT = { "Crítico", "ráfagas de daño más altas" },
+	ITEM_MOD_SPELL_HASTE_RATING_SHORT = { "Celeridad de Hechizos", "más casteos por minuto" },
+	ITEM_MOD_HASTE_RATING_SHORT = { "Celeridad", "más golpes por minuto" },
+	ITEM_MOD_HIT_SPELL_RATING_SHORT = { "Golpe de Hechizos", "menos fallos contra jefes" },
+	ITEM_MOD_HIT_RATING_SHORT = { "Golpe", "menos fallos contra jefes" },
+	ITEM_MOD_SPELL_POWER_SHORT = { "Poder con Hechizos", "más daño/curación directo" },
+	ITEM_MOD_ATTACK_POWER_SHORT = { "Poder de Ataque", "más daño físico directo" },
+	ITEM_MOD_RANGED_ATTACK_POWER_SHORT = { "Poder de Ataque a Distancia", "más daño a distancia" },
+	ITEM_MOD_FERAL_ATTACK_POWER_SHORT = { "Poder de Ataque Feral", "más daño en formas feral" },
+	ITEM_MOD_SPELL_HEALING_DONE_SHORT = { "Curación", "más sanación directa" },
+	ITEM_MOD_MANA_REGENERATION_SHORT = { "Regen. de Maná (Mp5)", "mejor en peleas largas" },
+	ITEM_MOD_SPIRIT_SHORT = { "Espíritu", "mejor regeneración fuera de combate" },
+	ITEM_MOD_INTELLECT_SHORT = { "Intelecto", "más reserva de maná" },
+	ITEM_MOD_STAMINA_SHORT = { "Aguante", "más vida" },
+	ITEM_MOD_STRENGTH_SHORT = { "Fuerza", "más daño físico base" },
+	ITEM_MOD_AGILITY_SHORT = { "Agilidad", "más daño físico y esquiva" },
+	ITEM_MOD_DEFENSE_SKILL_RATING_SHORT = { "Defensa", "más supervivencia como tanque" },
+	ITEM_MOD_DODGE_RATING_SHORT = { "Esquiva", "más supervivencia como tanque" },
+	ITEM_MOD_PARRY_RATING_SHORT = { "Parada", "más supervivencia como tanque" },
+	ITEM_MOD_BLOCK_RATING_SHORT = { "Bloqueo", "más supervivencia como tanque" },
+	ITEM_MOD_BLOCK_VALUE_SHORT = { "Valor de Bloqueo", "más supervivencia como tanque" },
+	ITEM_MOD_RESILIENCE_RATING_SHORT = { "Resiliencia", "mejor en PvP" },
+	ITEM_MOD_ARMOR_SHORT = { "Armadura", "más mitigación física" },
+	ITEM_MOD_ARMOR_PENETRATION_RATING_SHORT = { "Penetración de Armadura", "más daño contra objetivos acorazados" },
+	ITEM_MOD_FIRE_DAMAGE_SHORT = { "Daño de Fuego", "más daño en esa escuela de hechizos" },
+	ITEM_MOD_FROST_DAMAGE_SHORT = { "Daño de Escarcha", "más daño en esa escuela de hechizos" },
+	ITEM_MOD_ARCANE_DAMAGE_SHORT = { "Daño Arcano", "más daño en esa escuela de hechizos" },
+	ITEM_MOD_NATURE_DAMAGE_SHORT = { "Daño de Naturaleza", "más daño en esa escuela de hechizos" },
+	ITEM_MOD_SHADOW_DAMAGE_SHORT = { "Daño de Sombra", "más daño en esa escuela de hechizos" },
+}
+
+--- Línea secundaria, solo para "Equípatelo": qué stat explica la mejora y
+--- para qué sirve, sin volver a mostrar el número de score (pedido
+--- explícito de una fase anterior). nil si no hay topStat o no está
+--- mapeado en STAT_CONTEXT -- en ese caso no se agrega segunda línea.
+local function FormatContextLine(result)
+	if result.isUpgrade ~= true or not result.topStat then
+		return nil
+	end
+	local info = STAT_CONTEXT[result.topStat]
+	if not info then
+		return nil
+	end
+	return ("  %sPor: +%s (%s)%s"):format(COLOR_GRAY, info[1], info[2], COLOR_RESET)
+end
+
+ns.FormatContextLine = FormatContextLine
+
 --- Agrega al tooltip la línea de análisis para `entry` (lo que devuelven
 --- ns.GetLootResult/ns.GetRollResult). `entry` puede ser nil si el hover
 --- ocurre antes de que la Fase 5 termine de resolver el ítem (hueco async
@@ -58,6 +114,11 @@ local function AppendAnalysis(tooltip, entry)
 	end
 
 	tooltip:AddLine(FormatScoreLine(result))
+
+	local contextLine = FormatContextLine(result)
+	if contextLine then
+		tooltip:AddLine(contextLine)
+	end
 end
 
 ns.AppendAnalysis = AppendAnalysis
