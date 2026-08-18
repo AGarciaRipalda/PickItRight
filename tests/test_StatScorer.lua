@@ -113,6 +113,30 @@ local druidFeral = ns.GetActiveWeightProfile()
 assert(druidFeral, "Druida Feral debía resolver perfil")
 assertEqual(druidFeral.ITEM_MOD_FERAL_ATTACK_POWER_SHORT, 1.0, "Druida Feral: poder de ataque feral")
 
+-- --- Bug real reportado por un Paladín tanque: el DPS del arma no pesaba --
+-- nada, así que un arma con MENOS daño por segundo (pero un poco más de
+-- Agilidad) puntuaba como mejora. GetItemStats() SÍ expone el DPS del arma
+-- bajo ITEM_MOD_DAMAGE_PER_SECOND_SHORT (confirmado con /pickitright
+-- inspect) -- faltaba el peso correspondiente en el perfil. Portado desde
+-- SharpiesGearJudge (Paladin.lua, PROT_DEEP.MSC_WEAPON_DPS = 0.2 -- su
+-- propio cálculo de DPS, no una clave de GetItemStats, pero el mismo valor
+-- de peso aplica igual de bien a la clave real).
+ns.context = { class = "PALADIN", dominantTab = 2 } -- Protection
+local paladinProt = ns.GetActiveWeightProfile()
+assertEqual(paladinProt.ITEM_MOD_DAMAGE_PER_SECOND_SHORT, 0.2, "Paladín Protección: peso de DPS de arma")
+
+-- Antes del fix, el DPS del arma contribuía CERO al score (clave sin peso
+-- en ningún perfil) -- este caso confirma que ahora sí aporta, proporcional
+-- al peso. NO se afirma qué arma "gana" en el caso real reportado (Slatemetal
+-- Cutlass vs Darkwater Talwar): con estos pesos puntuales (Agilidad pesa 3x
+-- más que DPS para Paladín Protección) el resultado real queda muy cerca
+-- (diferencia de ~0.13 sobre una base de ~3.7-3.9) -- afirmar un ganador
+-- sin verificarlo a mano sería el mismo error que causó este bug.
+local dpsOnly16 = { ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 16.6 }
+local dpsOnly12 = { ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 12.27 }
+assertClose(ns.ScoreStats(dpsOnly16, paladinProt) - ns.ScoreStats(dpsOnly12, paladinProt), (16.6 - 12.27) * 0.2,
+	"el DPS del arma ahora aporta al score, proporcional a su peso (antes del fix, contribuía 0)")
+
 -- --- Overrides manuales (Fase 8, normalmente de AddonSettings.lua) -------
 
 ns.context = { class = "MAGE", dominantTab = 2 }

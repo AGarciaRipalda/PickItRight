@@ -102,11 +102,21 @@ archivo `Classes/TBC/<Clase>.lua` por clase, tabla `Weights` keyed por
 spec. Mismo diseño que el nuestro (tabla explícita ITEM_MOD_X -> peso,
 estilo Pawn), así que la traducción es directa. Reglas de curación
 aplicadas a TODAS las filas de abajo, no copiadas en bloque:
-  1. Se descarta `MSC_WEAPON_DPS`/`MSC_WEAPON_SPEED` — son cálculos
-     propios de ese addon sobre daño/velocidad de arma, no claves de
-     GetItemStats; nuestro ScoreStats no tiene forma de usarlos todavía
-     (gap real, no un olvido — el DPS/velocidad de arma no entra en el
-     scoring de ningún perfil de acá).
+  1. Se descarta `MSC_WEAPON_SPEED` (cálculo propio de ese addon, no una
+     clave de GetItemStats) pero su valor de `MSC_WEAPON_DPS` SÍ se porta
+     — apuntado a `ITEM_MOD_DAMAGE_PER_SECOND_SHORT`, la clave real que
+     GetItemStats() expone para el DPS del arma (confirmada con
+     `/pickitright inspect` contra un ítem real). Bug real reportado por
+     un Paladín tanque: sin esta clave, el DPS del arma puntuaba 0 pase lo
+     que pase, así que un arma con menos daño por segundo (pero algún
+     stat secundario mayor) podía salir "Equípatelo" ignorando por
+     completo que pegaba más flojo. El VALOR de peso de `MSC_WEAPON_DPS`
+     se reusa tal cual para la clave real: aunque el cálculo de origen de
+     ese número sea propio de SharpiesGearJudge, representa la misma
+     idea ("cuánto vale 1 punto de DPS de arma para esta spec"), y aplica
+     igual de bien al DPS real del arma. Perfiles donde el peso de
+     MSC_WEAPON_DPS era 0.0 en la fuente (Sacerdote, Brujo, Druida) se
+     dejaron sin la clave — agregar un peso 0.0 no cambia nada, es ruido.
   2. Se descarta `ITEM_MOD_EXPERTISE_RATING_SHORT` en todas las filas
      donde aparecía — Pericia es un stat de WotLK, no existe en objetos
      de TBC real (ver CLAUDE.md). Presente en el código fuente pero sin
@@ -154,6 +164,7 @@ local WEIGHT_PROFILES = {
 				ITEM_MOD_SPELL_CRIT_RATING_SHORT = 0.7,
 				ITEM_MOD_SPELL_HASTE_RATING_SHORT = 0.9,
 				ITEM_MOD_SPIRIT_SHORT = 0.6, -- Arcane Meditation
+				ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 0.02,
 			},
 		},
 		Fire = {
@@ -166,6 +177,7 @@ local WEIGHT_PROFILES = {
 				ITEM_MOD_SPELL_HASTE_RATING_SHORT = 0.9,
 				ITEM_MOD_INTELLECT_SHORT = 0.4,
 				ITEM_MOD_SPIRIT_SHORT = 0.1,
+				ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 0.02,
 			},
 		},
 		Frost = {
@@ -177,6 +189,7 @@ local WEIGHT_PROFILES = {
 				ITEM_MOD_SPELL_HASTE_RATING_SHORT = 0.8,
 				ITEM_MOD_INTELLECT_SHORT = 0.5,
 				ITEM_MOD_SPIRIT_SHORT = 0.1,
+				ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 0.02,
 			},
 		},
 	},
@@ -190,6 +203,7 @@ local WEIGHT_PROFILES = {
 				ITEM_MOD_ATTACK_POWER_SHORT = 1.0,
 				ITEM_MOD_HASTE_RATING_SHORT = 1.1,
 				ITEM_MOD_AGILITY_SHORT = 1.4,
+				ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 5.0,
 			},
 		},
 		Fury = {
@@ -201,6 +215,7 @@ local WEIGHT_PROFILES = {
 				ITEM_MOD_ARMOR_PENETRATION_RATING_SHORT = 0.35,
 				ITEM_MOD_HASTE_RATING_SHORT = 1.3,
 				ITEM_MOD_AGILITY_SHORT = 1.5,
+				ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 6.0,
 			},
 		},
 		Protection = {
@@ -215,6 +230,7 @@ local WEIGHT_PROFILES = {
 				ITEM_MOD_RESILIENCE_RATING_SHORT = 0.8,
 				ITEM_MOD_STRENGTH_SHORT = 0.6,
 				ITEM_MOD_AGILITY_SHORT = 0.5,
+				ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 1.5,
 			},
 		},
 	},
@@ -228,6 +244,7 @@ local WEIGHT_PROFILES = {
 				ITEM_MOD_SPELL_CRIT_RATING_SHORT = 1.25,
 				ITEM_MOD_MANA_REGENERATION_SHORT = 2.0,
 				ITEM_MOD_STAMINA_SHORT = 0.2,
+				ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 0.02,
 			},
 		},
 		Protection = {
@@ -247,6 +264,7 @@ local WEIGHT_PROFILES = {
 				ITEM_MOD_AGILITY_SHORT = 0.6,
 				ITEM_MOD_INTELLECT_SHORT = 0.1,
 				ITEM_MOD_MANA_REGENERATION_SHORT = 0.2,
+				ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 0.2,
 			},
 		},
 		Retribution = {
@@ -261,6 +279,7 @@ local WEIGHT_PROFILES = {
 				ITEM_MOD_ARMOR_PENETRATION_RATING_SHORT = 0.4,
 				ITEM_MOD_INTELLECT_SHORT = 0.05,
 				ITEM_MOD_SPELL_POWER_SHORT = 0.1,
+				ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 7.5,
 			},
 		},
 	},
@@ -275,6 +294,7 @@ local WEIGHT_PROFILES = {
 				ITEM_MOD_HASTE_RATING_SHORT = 1.2,
 				ITEM_MOD_ARMOR_PENETRATION_RATING_SHORT = 0.3,
 				ITEM_MOD_INTELLECT_SHORT = 0.4,
+				ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 12.0,
 			},
 		},
 		Marksmanship = {
@@ -286,6 +306,7 @@ local WEIGHT_PROFILES = {
 				ITEM_MOD_CRIT_RATING_SHORT = 1.3,
 				ITEM_MOD_HIT_RATING_SHORT = 1.9,
 				ITEM_MOD_INTELLECT_SHORT = 0.5,
+				ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 13.0,
 			},
 		},
 		Survival = {
@@ -297,6 +318,7 @@ local WEIGHT_PROFILES = {
 				ITEM_MOD_RANGED_ATTACK_POWER_SHORT = 0.6,
 				ITEM_MOD_INTELLECT_SHORT = 0.6, -- Thrill of the Hunt
 				ITEM_MOD_ARMOR_PENETRATION_RATING_SHORT = 0.2,
+				ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 10.0,
 			},
 		},
 	},
@@ -309,6 +331,7 @@ local WEIGHT_PROFILES = {
 				ITEM_MOD_ATTACK_POWER_SHORT = 1.0,
 				ITEM_MOD_HASTE_RATING_SHORT = 1.2,
 				ITEM_MOD_STRENGTH_SHORT = 1.0,
+				ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 5.0,
 			},
 		},
 		Combat = {
@@ -319,6 +342,7 @@ local WEIGHT_PROFILES = {
 				ITEM_MOD_CRIT_RATING_SHORT = 1.3,
 				ITEM_MOD_HASTE_RATING_SHORT = 1.4,
 				ITEM_MOD_STRENGTH_SHORT = 1.1,
+				ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 6.5,
 			},
 		},
 		Subtlety = {
@@ -331,6 +355,7 @@ local WEIGHT_PROFILES = {
 				ITEM_MOD_ATTACK_POWER_SHORT = 1.0,
 				ITEM_MOD_HIT_RATING_SHORT = 0.5,
 				ITEM_MOD_ARMOR_PENETRATION_RATING_SHORT = 0.3,
+				ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 3.0,
 			},
 		},
 	},
@@ -379,6 +404,7 @@ local WEIGHT_PROFILES = {
 				ITEM_MOD_SPELL_HASTE_RATING_SHORT = 0.9,
 				ITEM_MOD_INTELLECT_SHORT = 0.4,
 				ITEM_MOD_MANA_REGENERATION_SHORT = 0.5,
+				ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 0.02,
 			},
 		},
 		Enhancement = {
@@ -391,6 +417,7 @@ local WEIGHT_PROFILES = {
 				ITEM_MOD_CRIT_RATING_SHORT = 1.3,
 				ITEM_MOD_HASTE_RATING_SHORT = 1.2,
 				ITEM_MOD_ARMOR_PENETRATION_RATING_SHORT = 0.4,
+				ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 4.5,
 			},
 		},
 		Restoration = {
@@ -400,6 +427,7 @@ local WEIGHT_PROFILES = {
 				ITEM_MOD_INTELLECT_SHORT = 0.9,
 				ITEM_MOD_SPELL_HASTE_RATING_SHORT = 0.8,
 				ITEM_MOD_SPELL_CRIT_RATING_SHORT = 0.6,
+				ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 0.02,
 			},
 		},
 	},
