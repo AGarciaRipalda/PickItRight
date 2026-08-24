@@ -172,9 +172,12 @@ local WEIGHT_PROFILES = {
 				-- tenían el nombre de stat al revés (ver punto 4 arriba) y el valor viejo.
 				ITEM_MOD_SPELL_POWER_SHORT = 1.0,
 				ITEM_MOD_HIT_SPELL_RATING_SHORT = 1.3, -- alto valor hasta el cap, ver CAP_RULES
-				ITEM_MOD_SPELL_CRIT_RATING_SHORT = 0.95, -- Ignite
 				ITEM_MOD_FIRE_DAMAGE_SHORT = 1.0,
-				ITEM_MOD_SPELL_HASTE_RATING_SHORT = 0.9,
+				-- Celeridad reordenada por encima de Crítico contra Icy Veins
+				-- (fire-mage-dps-pve-stat-priority: Golpe > Daño > Celeridad >
+				-- Crítico).
+				ITEM_MOD_SPELL_HASTE_RATING_SHORT = 1.0,
+				ITEM_MOD_SPELL_CRIT_RATING_SHORT = 0.95, -- Ignite
 				ITEM_MOD_INTELLECT_SHORT = 0.4,
 				ITEM_MOD_SPIRIT_SHORT = 0.1,
 				ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 0.02,
@@ -195,8 +198,10 @@ local WEIGHT_PROFILES = {
 	},
 	WARRIOR = {
 		Arms = {
-			[1] = { -- EndgameTabMap: ARMS_PVE
-				ITEM_MOD_HIT_RATING_SHORT = 1.9,
+			[1] = { -- EndgameTabMap: ARMS_PVE. Golpe reordenado por encima de
+				-- Fuerza contra Icy Veins (arms-warrior-dps-pve-stat-priority:
+				-- Golpe > Expertise > Crítico > Penetración > Fuerza/Ataque).
+				ITEM_MOD_HIT_RATING_SHORT = 2.4,
 				ITEM_MOD_STRENGTH_SHORT = 2.3,
 				ITEM_MOD_CRIT_RATING_SHORT = 1.5,
 				ITEM_MOD_ARMOR_PENETRATION_RATING_SHORT = 0.4,
@@ -207,11 +212,15 @@ local WEIGHT_PROFILES = {
 			},
 		},
 		Fury = {
-			[1] = { -- EndgameTabMap: FURY_DW (dual-wield). También existe FURY_2H en la fuente.
-				ITEM_MOD_HIT_RATING_SHORT = 1.9,
+			[1] = { -- EndgameTabMap: FURY_DW (dual-wield). También existe FURY_2H en
+				-- la fuente. Golpe reordenado por encima de Fuerza, y Crítico por
+				-- encima de Agilidad, contra Icy Veins (fury-warrior-dps-pve-stat-
+				-- priority: Golpe > Expertise > Crítico > Penetración >
+				-- Fuerza/Ataque > Agilidad > Celeridad).
+				ITEM_MOD_HIT_RATING_SHORT = 2.3,
 				ITEM_MOD_STRENGTH_SHORT = 2.2,
 				ITEM_MOD_ATTACK_POWER_SHORT = 1.0,
-				ITEM_MOD_CRIT_RATING_SHORT = 1.4,
+				ITEM_MOD_CRIT_RATING_SHORT = 1.6,
 				ITEM_MOD_ARMOR_PENETRATION_RATING_SHORT = 0.35,
 				ITEM_MOD_HASTE_RATING_SHORT = 1.3,
 				ITEM_MOD_AGILITY_SHORT = 1.5,
@@ -271,10 +280,14 @@ local WEIGHT_PROFILES = {
 			},
 		},
 		Retribution = {
-			[1] = { -- EndgameTabMap: RET_STANDARD
+			[1] = { -- EndgameTabMap: RET_STANDARD. Golpe reordenado por encima de
+				-- Fuerza, y Crítico bajado por debajo de Celeridad, contra Icy
+				-- Veins (retribution-paladin-dps-pve-stat-priority: Golpe >
+				-- Expertise > Fuerza > Ataque > Celeridad > Penetración >
+				-- Agilidad/Crítico, este último al final).
+				ITEM_MOD_HIT_RATING_SHORT = 2.5,
 				ITEM_MOD_STRENGTH_SHORT = 2.4,
-				ITEM_MOD_HIT_RATING_SHORT = 2.2,
-				ITEM_MOD_CRIT_RATING_SHORT = 1.6,
+				ITEM_MOD_CRIT_RATING_SHORT = 1.3,
 				ITEM_MOD_STAMINA_SHORT = 1.5,
 				ITEM_MOD_AGILITY_SHORT = 1.4,
 				ITEM_MOD_HASTE_RATING_SHORT = 1.5,
@@ -385,15 +398,18 @@ local WEIGHT_PROFILES = {
 			},
 		},
 		Shadow = {
-			[1] = { -- Inferido: SHADOW_PVE, no SHADOW_PVP ni SMITE_DPS
+			[1] = { -- Inferido: SHADOW_PVE, no SHADOW_PVP ni SMITE_DPS. Espíritu
+				-- reordenado por encima de Mp5 contra Icy Veins
+				-- (shadow-priest-dps-pve-stat-priority: ...Espíritu > Mp5 >
+				-- Aguante).
 				ITEM_MOD_HIT_SPELL_RATING_SHORT = 1.4, -- cap es prioridad #1
 				ITEM_MOD_SHADOW_DAMAGE_SHORT = 1.2,
 				ITEM_MOD_SPELL_POWER_SHORT = 1.0,
 				ITEM_MOD_SPELL_HASTE_RATING_SHORT = 0.8,
 				ITEM_MOD_SPELL_CRIT_RATING_SHORT = 0.4,
 				ITEM_MOD_INTELLECT_SHORT = 0.3,
-				ITEM_MOD_SPIRIT_SHORT = 0.05,
-				ITEM_MOD_MANA_REGENERATION_SHORT = 0.5,
+				ITEM_MOD_SPIRIT_SHORT = 0.55,
+				ITEM_MOD_MANA_REGENERATION_SHORT = 0.45,
 			},
 		},
 	},
@@ -426,11 +442,16 @@ local WEIGHT_PROFILES = {
 			},
 		},
 		Restoration = {
-			[1] = { -- EndgameTabMap: RESTO_PVE
+			[1] = { -- EndgameTabMap: RESTO_PVE. Celeridad e Intelecto ajustados a
+				-- los valores EXACTOS que da Icy Veins
+				-- (restoration-shaman-healer-pve-stat-priority, formato Pawn:
+				-- Intelecto=0.5, Mp5=2, Curación=1, CríticoHechizos=0.6,
+				-- CeleridadHechizos=1.5, Aguante=0.2) -- Curación, Crítico y
+				-- Mp5 ya coincidían casi exactos con la fuente anterior.
 				ITEM_MOD_SPELL_HEALING_DONE_SHORT = 1.0,
-				ITEM_MOD_MANA_REGENERATION_SHORT = 2.5,
-				ITEM_MOD_INTELLECT_SHORT = 0.9,
-				ITEM_MOD_SPELL_HASTE_RATING_SHORT = 0.8,
+				ITEM_MOD_MANA_REGENERATION_SHORT = 2.0,
+				ITEM_MOD_INTELLECT_SHORT = 0.5,
+				ITEM_MOD_SPELL_HASTE_RATING_SHORT = 1.5,
 				ITEM_MOD_SPELL_CRIT_RATING_SHORT = 0.6,
 				ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 0.02,
 			},
@@ -438,27 +459,33 @@ local WEIGHT_PROFILES = {
 	},
 	WARLOCK = {
 		Affliction = {
-			[1] = { -- Sin EndgameTabMap; inferido: RAID_AFFLICTION
+			[1] = { -- Sin EndgameTabMap; inferido: RAID_AFFLICTION. Celeridad
+				-- subida y Aguante bajado contra Icy Veins
+				-- (affliction-warlock-dps-pve-stat-priority), que da valores de
+				-- equivalencia numéricos reales relativos a Poder con Hechizos:
+				-- Celeridad ≈1.36x, Aguante ≈0x (0 DPS de Aguante para un Brujo).
 				ITEM_MOD_SHADOW_DAMAGE_SHORT = 1.2,
 				ITEM_MOD_SPELL_POWER_SHORT = 1.3,
 				ITEM_MOD_HIT_SPELL_RATING_SHORT = 1.4,
-				ITEM_MOD_SPELL_HASTE_RATING_SHORT = 0.8,
+				ITEM_MOD_SPELL_HASTE_RATING_SHORT = 1.75,
 				ITEM_MOD_SPELL_CRIT_RATING_SHORT = 0.5,
 				ITEM_MOD_INTELLECT_SHORT = 0.5,
-				ITEM_MOD_STAMINA_SHORT = 0.6,
+				ITEM_MOD_STAMINA_SHORT = 0.05,
 				ITEM_MOD_SPIRIT_SHORT = 0.3,
 				ITEM_MOD_MANA_REGENERATION_SHORT = 0.1,
 			},
 		},
 		Demonology = {
-			[1] = { -- Inferido: DEMO_PVE
+			[1] = { -- Inferido: DEMO_PVE. Mismo ajuste de Celeridad/Aguante que
+				-- Afflicción, contra Icy Veins (demonology-warlock-dps-pve-stat-
+				-- priority, EV numérico: Celeridad ≈1.36x, Aguante ≈0.06x).
 				ITEM_MOD_SPELL_POWER_SHORT = 1.0,
 				ITEM_MOD_SHADOW_DAMAGE_SHORT = 0.95,
 				ITEM_MOD_HIT_SPELL_RATING_SHORT = 1.3,
 				ITEM_MOD_SPELL_CRIT_RATING_SHORT = 0.8,
-				ITEM_MOD_STAMINA_SHORT = 0.9,
+				ITEM_MOD_STAMINA_SHORT = 0.06,
 				ITEM_MOD_INTELLECT_SHORT = 0.6,
-				ITEM_MOD_SPELL_HASTE_RATING_SHORT = 0.9,
+				ITEM_MOD_SPELL_HASTE_RATING_SHORT = 1.36,
 				ITEM_MOD_SPIRIT_SHORT = 0.2,
 				ITEM_MOD_MANA_REGENERATION_SHORT = 0.1,
 			},
@@ -467,13 +494,16 @@ local WEIGHT_PROFILES = {
 			[1] = { -- Inferido: DESTRUCT_SHADOW (Shadow Bolt como nuke principal
 				-- en TBC incluso para Destro). La fuente también tiene
 				-- DESTRUCT_FIRE, casi idéntico salvo Fire Damage en vez de Shadow.
+				-- Mismo ajuste de Celeridad/Aguante que las otras dos specs,
+				-- contra Icy Veins (destruction-warlock-dps-pve-stat-priority,
+				-- EV numérico: Celeridad ≈1.39x, Aguante ≈0x).
 				ITEM_MOD_HIT_SPELL_RATING_SHORT = 1.3,
 				ITEM_MOD_SHADOW_DAMAGE_SHORT = 1.2,
 				ITEM_MOD_SPELL_POWER_SHORT = 1.3,
 				ITEM_MOD_SPELL_CRIT_RATING_SHORT = 0.9,
-				ITEM_MOD_SPELL_HASTE_RATING_SHORT = 1.0,
+				ITEM_MOD_SPELL_HASTE_RATING_SHORT = 1.8,
 				ITEM_MOD_INTELLECT_SHORT = 0.4,
-				ITEM_MOD_STAMINA_SHORT = 0.5,
+				ITEM_MOD_STAMINA_SHORT = 0.05,
 				ITEM_MOD_SPIRIT_SHORT = 0.2,
 				ITEM_MOD_MANA_REGENERATION_SHORT = 0.05,
 			},
@@ -481,16 +511,19 @@ local WEIGHT_PROFILES = {
 	},
 	DRUID = {
 		Balance = {
-			[1] = { -- EndgameTabMap: BALANCE_PVE
+			[1] = { -- EndgameTabMap: BALANCE_PVE. Celeridad subida por encima de
+				-- Crítico, y Espíritu por encima de Mp5, contra Icy Veins
+				-- (balance-druid-dps-pve-stat-priority: ...Celeridad > Crítico >
+				-- Intelecto > Espíritu > Mp5 > Aguante).
 				ITEM_MOD_HIT_SPELL_RATING_SHORT = 1.4,
 				ITEM_MOD_SPELL_POWER_SHORT = 1.0,
 				ITEM_MOD_ARCANE_DAMAGE_SHORT = 1.0,
 				ITEM_MOD_NATURE_DAMAGE_SHORT = 1.0,
+				ITEM_MOD_SPELL_HASTE_RATING_SHORT = 1.05,
 				ITEM_MOD_SPELL_CRIT_RATING_SHORT = 1.0,
 				ITEM_MOD_INTELLECT_SHORT = 0.7,
-				ITEM_MOD_SPELL_HASTE_RATING_SHORT = 0.9,
-				ITEM_MOD_SPIRIT_SHORT = 0.3,
-				ITEM_MOD_MANA_REGENERATION_SHORT = 0.4,
+				ITEM_MOD_SPIRIT_SHORT = 0.45,
+				ITEM_MOD_MANA_REGENERATION_SHORT = 0.35,
 				ITEM_MOD_STAMINA_SHORT = 0.1,
 			},
 		},
@@ -499,7 +532,10 @@ local WEIGHT_PROFILES = {
 				-- FERAL_BEAR (tank) por separado — mismo dilema Tank/Melee que
 				-- ya documentamos en SpecDetector.lua; SharpiesGearJudge por
 				-- defecto también elige la interpretación dps para esta pestaña.
-				ITEM_MOD_HIT_RATING_SHORT = 1.8,
+				-- Golpe reordenado por encima de Fuerza contra Icy Veins
+				-- (feral-druid-dps-pve-stat-priority: Agilidad > Golpe >
+				-- Expertise > Fuerza).
+				ITEM_MOD_HIT_RATING_SHORT = 2.2,
 				ITEM_MOD_STRENGTH_SHORT = 2.1,
 				ITEM_MOD_AGILITY_SHORT = 2.3,
 				ITEM_MOD_ATTACK_POWER_SHORT = 1.0,
