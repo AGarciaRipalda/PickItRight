@@ -399,12 +399,14 @@ local WEIGHT_PROFILES = {
 	},
 	SHAMAN = {
 		Elemental = {
-			[1] = { -- EndgameTabMap: ELE_PVE
+			[1] = { -- EndgameTabMap: ELE_PVE. Celeridad reordenada por encima de
+				-- Daño de Hechizos contra Icy Veins (Golpe > Celeridad > Daño de
+				-- Hechizos > Crítico), que antes tenía el orden invertido.
 				ITEM_MOD_HIT_SPELL_RATING_SHORT = 1.3,
+				ITEM_MOD_SPELL_HASTE_RATING_SHORT = 1.25,
 				ITEM_MOD_NATURE_DAMAGE_SHORT = 1.2,
 				ITEM_MOD_SPELL_POWER_SHORT = 1.0,
 				ITEM_MOD_SPELL_CRIT_RATING_SHORT = 0.8,
-				ITEM_MOD_SPELL_HASTE_RATING_SHORT = 0.9,
 				ITEM_MOD_INTELLECT_SHORT = 0.4,
 				ITEM_MOD_MANA_REGENERATION_SHORT = 0.5,
 				ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 0.02,
