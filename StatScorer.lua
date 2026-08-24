@@ -117,10 +117,20 @@ aplicadas a TODAS las filas de abajo, no copiadas en bloque:
      igual de bien al DPS real del arma. Perfiles donde el peso de
      MSC_WEAPON_DPS era 0.0 en la fuente (Sacerdote, Brujo, Druida) se
      dejaron sin la clave — agregar un peso 0.0 no cambia nada, es ruido.
-  2. Se descarta `ITEM_MOD_EXPERTISE_RATING_SHORT` en todas las filas
-     donde aparecía — Pericia es un stat de WotLK, no existe en objetos
-     de TBC real (ver CLAUDE.md). Presente en el código fuente pero sin
-     ningún efecto en objetos reales de esta era.
+  2. **Supuesto revertido, confirmado equivocado:** se excluía
+     `ITEM_MOD_EXPERTISE_RATING_SHORT` de todas las filas asumiendo que
+     Pericia era un stat de WotLK sin existencia real en TBC. Refutado con
+     evidencia real, no solo de una guía externa: `Helpers.lua` de
+     SharpiesGearJudge lee el rating EN VIVO vía `GetCombatRating(24)`
+     (una llamada real a la API del personaje, no un valor teórico), y
+     varias filas de este mismo archivo fuente traen el comentario
+     explícito `-- Added TBC Stat` junto al peso de Expertise — es decir,
+     el propio autor de la fuente que ya usamos para todo lo demás
+     documentó que SÍ es un stat real de TBC, y el peso simplemente se
+     venía descartando acá por error, sin volver a verificar el supuesto.
+     Restaurado en las 8 filas donde la fuente lo pesa (`ITEM_MOD_ARMOR_SHORT`
+     de Paladín Protección es la excepción notable: esa fila específica NO
+     tiene Expertise en la fuente, no se agregó ahí).
   3. Se descarta lo agrupado bajo sus comentarios "TRACE VALUES" /
      "POISON PROTECTION" / "ZERO VALUES" — son parches del motor de ESE
      addon para neutralizar un efecto secundario propio de su scoring
@@ -201,7 +211,10 @@ local WEIGHT_PROFILES = {
 			[1] = { -- EndgameTabMap: ARMS_PVE. Golpe reordenado por encima de
 				-- Fuerza contra Icy Veins (arms-warrior-dps-pve-stat-priority:
 				-- Golpe > Expertise > Crítico > Penetración > Fuerza/Ataque).
+				-- Expertise restaurada (ver el punto 2 de la cabecera de
+				-- WEIGHT_PROFILES) con el valor real de la fuente.
 				ITEM_MOD_HIT_RATING_SHORT = 2.4,
+				ITEM_MOD_EXPERTISE_RATING_SHORT = 2.0,
 				ITEM_MOD_STRENGTH_SHORT = 2.3,
 				ITEM_MOD_CRIT_RATING_SHORT = 1.5,
 				ITEM_MOD_ARMOR_PENETRATION_RATING_SHORT = 0.4,
@@ -216,8 +229,11 @@ local WEIGHT_PROFILES = {
 				-- la fuente. Golpe reordenado por encima de Fuerza, y Crítico por
 				-- encima de Agilidad, contra Icy Veins (fury-warrior-dps-pve-stat-
 				-- priority: Golpe > Expertise > Crítico > Penetración >
-				-- Fuerza/Ataque > Agilidad > Celeridad).
+				-- Fuerza/Ataque > Agilidad > Celeridad). Expertise restaurada
+				-- (ver punto 2 de la cabecera de WEIGHT_PROFILES) con el valor
+				-- real de la fuente.
 				ITEM_MOD_HIT_RATING_SHORT = 2.3,
+				ITEM_MOD_EXPERTISE_RATING_SHORT = 2.2,
 				ITEM_MOD_STRENGTH_SHORT = 2.2,
 				ITEM_MOD_ATTACK_POWER_SHORT = 1.0,
 				ITEM_MOD_CRIT_RATING_SHORT = 1.6,
@@ -228,7 +244,9 @@ local WEIGHT_PROFILES = {
 			},
 		},
 		Protection = {
-			[1] = { -- EndgameTabMap: DEEP_PROT
+			[1] = { -- EndgameTabMap: DEEP_PROT. Expertise restaurada (ver punto 2
+				-- de la cabecera de WEIGHT_PROFILES) con el valor real de la
+				-- fuente.
 				ITEM_MOD_STAMINA_SHORT = 1.6,
 				ITEM_MOD_DEFENSE_SKILL_RATING_SHORT = 2.4,
 				ITEM_MOD_BLOCK_VALUE_SHORT = 0.7,
@@ -236,6 +254,7 @@ local WEIGHT_PROFILES = {
 				ITEM_MOD_PARRY_RATING_SHORT = 1.0,
 				ITEM_MOD_BLOCK_RATING_SHORT = 0.9,
 				ITEM_MOD_HIT_RATING_SHORT = 0.6,
+				ITEM_MOD_EXPERTISE_RATING_SHORT = 1.0,
 				ITEM_MOD_RESILIENCE_RATING_SHORT = 0.8,
 				ITEM_MOD_STRENGTH_SHORT = 0.6,
 				ITEM_MOD_AGILITY_SHORT = 0.5,
@@ -284,8 +303,11 @@ local WEIGHT_PROFILES = {
 				-- Fuerza, y Crítico bajado por debajo de Celeridad, contra Icy
 				-- Veins (retribution-paladin-dps-pve-stat-priority: Golpe >
 				-- Expertise > Fuerza > Ataque > Celeridad > Penetración >
-				-- Agilidad/Crítico, este último al final).
+				-- Agilidad/Crítico, este último al final). Expertise restaurada
+				-- (ver punto 2 de la cabecera de WEIGHT_PROFILES) con el valor
+				-- real de la fuente.
 				ITEM_MOD_HIT_RATING_SHORT = 2.5,
+				ITEM_MOD_EXPERTISE_RATING_SHORT = 2.2,
 				ITEM_MOD_STRENGTH_SHORT = 2.4,
 				ITEM_MOD_CRIT_RATING_SHORT = 1.3,
 				ITEM_MOD_STAMINA_SHORT = 1.5,
@@ -340,10 +362,13 @@ local WEIGHT_PROFILES = {
 	},
 	ROGUE = {
 		Assassination = {
-			[1] = { -- Inferido: RAID_MUTILATE
+			[1] = { -- Inferido: RAID_MUTILATE. Expertise restaurada (ver punto 2
+				-- de la cabecera de WEIGHT_PROFILES) con el valor real de la
+				-- fuente.
 				ITEM_MOD_CRIT_RATING_SHORT = 1.6, -- Seal Fate
 				ITEM_MOD_AGILITY_SHORT = 2.1,
 				ITEM_MOD_HIT_RATING_SHORT = 1.7,
+				ITEM_MOD_EXPERTISE_RATING_SHORT = 1.8,
 				ITEM_MOD_ATTACK_POWER_SHORT = 1.0,
 				ITEM_MOD_HASTE_RATING_SHORT = 1.2,
 				ITEM_MOD_STRENGTH_SHORT = 1.0,
@@ -351,9 +376,11 @@ local WEIGHT_PROFILES = {
 			},
 		},
 		Combat = {
-			[1] = { -- Inferido: RAID_COMBAT
+			[1] = { -- Inferido: RAID_COMBAT. Expertise restaurada (ver punto 2 de
+				-- la cabecera de WEIGHT_PROFILES) con el valor real de la fuente.
 				ITEM_MOD_HIT_RATING_SHORT = 1.9, -- cap amarillo, prioridad #1
 				ITEM_MOD_AGILITY_SHORT = 2.2,
+				ITEM_MOD_EXPERTISE_RATING_SHORT = 2.1,
 				ITEM_MOD_ATTACK_POWER_SHORT = 1.0,
 				ITEM_MOD_CRIT_RATING_SHORT = 1.3,
 				ITEM_MOD_HASTE_RATING_SHORT = 1.4,
@@ -429,8 +456,10 @@ local WEIGHT_PROFILES = {
 			},
 		},
 		Enhancement = {
-			[1] = { -- EndgameTabMap: ENH_PVE
+			[1] = { -- EndgameTabMap: ENH_PVE. Expertise restaurada (ver punto 2 de
+				-- la cabecera de WEIGHT_PROFILES) con el valor real de la fuente.
 				ITEM_MOD_HIT_RATING_SHORT = 1.9,
+				ITEM_MOD_EXPERTISE_RATING_SHORT = 2.1,
 				ITEM_MOD_STRENGTH_SHORT = 2.1,
 				ITEM_MOD_AGILITY_SHORT = 1.6,
 				ITEM_MOD_ATTACK_POWER_SHORT = 1.0,
@@ -534,8 +563,10 @@ local WEIGHT_PROFILES = {
 				-- defecto también elige la interpretación dps para esta pestaña.
 				-- Golpe reordenado por encima de Fuerza contra Icy Veins
 				-- (feral-druid-dps-pve-stat-priority: Agilidad > Golpe >
-				-- Expertise > Fuerza).
+				-- Expertise > Fuerza). Expertise restaurada (ver punto 2 de la
+				-- cabecera de WEIGHT_PROFILES) con el valor real de la fuente.
 				ITEM_MOD_HIT_RATING_SHORT = 2.2,
+				ITEM_MOD_EXPERTISE_RATING_SHORT = 1.9,
 				ITEM_MOD_STRENGTH_SHORT = 2.1,
 				ITEM_MOD_AGILITY_SHORT = 2.3,
 				ITEM_MOD_ATTACK_POWER_SHORT = 1.0,

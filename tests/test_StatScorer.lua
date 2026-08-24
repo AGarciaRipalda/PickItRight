@@ -95,7 +95,12 @@ ns.context = { class = "WARRIOR", dominantTab = 1 } -- Arms
 local warriorArms = ns.GetActiveWeightProfile()
 assert(warriorArms, "Guerrero Armas debía resolver perfil")
 assertEqual(warriorArms.ITEM_MOD_STRENGTH_SHORT, 2.3, "Guerrero Armas: fuerza")
-assertEqual(warriorArms.ITEM_MOD_EXPERTISE_RATING_SHORT, nil, "Guerrero Armas: Pericia excluida (stat de WotLK, no de TBC)")
+-- Bug real: se excluía Expertise asumiendo que era un stat de WotLK sin
+-- existencia en TBC -- refutado (ver el punto 2 de la cabecera de
+-- WEIGHT_PROFILES en StatScorer.lua): la propia fuente (SharpiesGearJudge)
+-- la lee en vivo vía GetCombatRating(24) y varias filas traen el comentario
+-- "Added TBC Stat". Restaurada con el valor real de la fuente.
+assertEqual(warriorArms.ITEM_MOD_EXPERTISE_RATING_SHORT, 2.0, "Guerrero Armas: Expertise restaurada con el valor real de la fuente")
 
 ns.context = { class = "PRIEST", dominantTab = 3 } -- Shadow
 local priestShadow = ns.GetActiveWeightProfile()
