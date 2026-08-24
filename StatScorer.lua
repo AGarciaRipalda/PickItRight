@@ -248,16 +248,19 @@ local WEIGHT_PROFILES = {
 			},
 		},
 		Protection = {
-			[1] = { -- EndgameTabMap: PROT_DEEP
+			[1] = { -- EndgameTabMap: PROT_DEEP. Orden de Bloqueo/Esquiva/Parada y
+				-- Poder con Hechizos/Golpe ajustado contra Icy Veins (guía TBC
+				-- Classic, revisada para TBC Anniversary) -- ver el comentario de
+				-- cabecera de WEIGHT_PROFILES.
 				ITEM_MOD_DEFENSE_SKILL_RATING_SHORT = 2.4,
+				ITEM_MOD_BLOCK_RATING_SHORT = 2.1,
 				ITEM_MOD_DODGE_RATING_SHORT = 2.0,
-				ITEM_MOD_PARRY_RATING_SHORT = 2.0,
-				ITEM_MOD_BLOCK_RATING_SHORT = 1.7,
+				ITEM_MOD_PARRY_RATING_SHORT = 1.9,
 				ITEM_MOD_STAMINA_SHORT = 1.6,
 				ITEM_MOD_ARMOR_SHORT = 0.12,
 				ITEM_MOD_RESILIENCE_RATING_SHORT = 0.8,
-				ITEM_MOD_SPELL_POWER_SHORT = 0.75,
-				ITEM_MOD_HIT_SPELL_RATING_SHORT = 0.8,
+				ITEM_MOD_SPELL_POWER_SHORT = 0.8,
+				ITEM_MOD_HIT_SPELL_RATING_SHORT = 0.75,
 				ITEM_MOD_HIT_RATING_SHORT = 0.6,
 				ITEM_MOD_BLOCK_VALUE_SHORT = 0.35,
 				ITEM_MOD_STRENGTH_SHORT = 0.1,
