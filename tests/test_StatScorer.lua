@@ -157,4 +157,31 @@ assertEqual(overridden.ITEM_MOD_HIT_SPELL_RATING_SHORT, 1.3, "los stats sin over
 assertEqual(ns.WeightProfiles.MAGE.Fire[1].ITEM_MOD_SPELL_POWER_SHORT, 1.0,
 	"la tabla base NUNCA se muta, el override vive en una copia nueva")
 
+-- --- Fases 2-5 de Pícaro (única spec con datos numéricos reales por fase, --
+-- Icy Veins "EP Weights by Tier") -------------------------------------
+ns.context = { class = "ROGUE", dominantTab = 2 } -- Combat
+
+ns.SetContentPhase(2) -- SSC/TK -> columna T5 de la fuente
+local rogueT5 = ns.GetActiveWeightProfile()
+assert(rogueT5, "Pícaro Combate debía resolver perfil de Fase 2 (antes daba nil)")
+assertEqual(rogueT5.ITEM_MOD_EXPERTISE_RATING_SHORT, 2.65, "Pícaro Fase 2: Expertise (columna T5 de Icy Veins)")
+
+ns.SetContentPhase(4) -- Zul'Aman -> comparte columna T6 (la fuente no separa ZA)
+local rogueZA = ns.GetActiveWeightProfile()
+assertEqual(rogueZA.ITEM_MOD_HIT_RATING_SHORT, 2.44, "Pícaro Fase 4 (ZA): Golpe (columna T6, ZA no tiene columna propia)")
+
+-- Las 3 specs comparten la misma tabla en fases 2-5: la fuente da "Rogue
+-- DPS" genérico, sin separar Asesinato/Combate/Sutileza.
+ns.context = { class = "ROGUE", dominantTab = 3 } -- Subtlety
+ns.SetContentPhase(5) -- Sunwell
+local rogueSubSunwell = ns.GetActiveWeightProfile()
+assertEqual(rogueSubSunwell.ITEM_MOD_AGILITY_SHORT, 2.31, "Pícaro Sutileza Fase 5: Agilidad (columna Sunwell, misma tabla que las otras 2 specs)")
+
+ns.context = { class = "ROGUE", dominantTab = 1 } -- Assassination
+local rogueAssaSunwell = ns.GetActiveWeightProfile()
+assertEqual(rogueAssaSunwell.ITEM_MOD_AGILITY_SHORT, rogueSubSunwell.ITEM_MOD_AGILITY_SHORT,
+	"Pícaro Fase 5: Asesinato y Sutileza comparten exactamente la misma tabla (fuente no distingue spec)")
+
+ns.SetContentPhase(1) -- deja el estado limpio para no afectar otras pruebas si se reordenan
+
 print("OK: StatScorer.lua supera la prueba de humo")

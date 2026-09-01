@@ -163,6 +163,72 @@ Para añadir una clase/spec nueva o revisar una de estas:
 2. Agregar la entrada correspondiente en SPEC_NAMES más abajo, con el
    mismo índice de árbol de talentos que usa SpecDetector.lua.
 ]]
+--[[
+ÚNICA EXCEPCIÓN A "todo cargado bajo la Fase 1" (punto 6 arriba):
+Icy Veins (rogue-dps-pve-stat-priority) es la única guía de las 27
+combinaciones clase/spec revisadas que da una tabla numérica real de
+pesos POR FASE de contenido ("EP Weights by Tier": Pre-Raid/T4/T5/T6/
+Sunwell) -- todas las demás solo dan orden cualitativo sin números, o
+remiten a Wowsims (simulador interactivo, no una página con datos para
+portar). Investigado a pedido del usuario ("y no lo podrias deducir
+viendo los stats de la tier list de tbca bis...?" -- se descartó esa vía:
+Atlas solo tiene item IDs sin stats, y el ranking ya mezcla procs/bonos
+de set con stats crudos, así que "deducir" pesos del orden terminaría
+inventando un número con apariencia de dato real).
+
+La tabla de Icy Veins NO distingue Asesinato/Combate/Sutileza -- es
+"Rogue DPS" genérico, cita textual: "These EP weights are a general
+sense of how each stat scales. These are assuming you are at an average
+gear level in each tier." Por eso, a diferencia de la Fase 1 (donde cada
+spec tiene su propia fila sourced de SharpiesGearJudge), las 3 specs
+comparten estas mismas tablas para Fases 2-5 -- es exactamente lo que la
+fuente real ofrece, no una simplificación nuestra.
+
+Mapeo fase de contenido -> columna de la fuente (ver GetContentPhase en
+este mismo archivo: 1=Kara/Gruul/Mag, 2=SSC/TK, 3=BT/Hyjal, 4=ZA,
+5=Sunwell): T4->Fase 1 (ya cubierta con datos propios de SharpiesGearJudge,
+no se pisa), T5->Fase 2, T6->Fase 3 Y Fase 4 (Zul'Aman no agrega una
+itemización de tier nueva en la fuente, comparte T6), Sunwell->Fase 5.
+"Pre-Raid" no mapea a ninguna fase nuestra (todas parten de raideo), se
+descarta.
+
+No incluye ITEM_MOD_DAMAGE_PER_SECOND_SHORT (peso de DPS de arma): la
+fuente no lo cubre, y agregar un número inventado sería exactamente lo
+que se evitó al descartar la inferencia desde Atlas -- un stat ausente
+del perfil simplemente se ignora al puntuar (ver el comentario grande de
+BASE DE DATOS DE PESOS más abajo), no rompe nada.
+]]
+local ROGUE_GENERIC_T5 = { -- Fase 2 (SSC/TK)
+	ITEM_MOD_EXPERTISE_RATING_SHORT = 2.65,
+	ITEM_MOD_HIT_RATING_SHORT = 2.42,
+	ITEM_MOD_AGILITY_SHORT = 2.19,
+	ITEM_MOD_CRIT_RATING_SHORT = 1.72,
+	ITEM_MOD_HASTE_RATING_SHORT = 2.13,
+	ITEM_MOD_STRENGTH_SHORT = 1.1,
+	ITEM_MOD_ATTACK_POWER_SHORT = 1.0,
+	ITEM_MOD_ARMOR_PENETRATION_RATING_SHORT = 0.30,
+}
+local ROGUE_GENERIC_T6 = { -- Fases 3 y 4 (BT/Hyjal, ZA)
+	ITEM_MOD_EXPERTISE_RATING_SHORT = 2.66,
+	ITEM_MOD_HIT_RATING_SHORT = 2.44,
+	ITEM_MOD_AGILITY_SHORT = 2.21,
+	ITEM_MOD_CRIT_RATING_SHORT = 1.76,
+	ITEM_MOD_HASTE_RATING_SHORT = 2.29,
+	ITEM_MOD_STRENGTH_SHORT = 1.1,
+	ITEM_MOD_ATTACK_POWER_SHORT = 1.0,
+	ITEM_MOD_ARMOR_PENETRATION_RATING_SHORT = 0.34,
+}
+local ROGUE_GENERIC_SUNWELL = { -- Fase 5 (Sunwell Plateau)
+	ITEM_MOD_EXPERTISE_RATING_SHORT = 2.93,
+	ITEM_MOD_HIT_RATING_SHORT = 2.71,
+	ITEM_MOD_AGILITY_SHORT = 2.31,
+	ITEM_MOD_CRIT_RATING_SHORT = 1.92,
+	ITEM_MOD_HASTE_RATING_SHORT = 2.24,
+	ITEM_MOD_STRENGTH_SHORT = 1.1,
+	ITEM_MOD_ATTACK_POWER_SHORT = 1.0,
+	ITEM_MOD_ARMOR_PENETRATION_RATING_SHORT = 0.38,
+}
+
 local WEIGHT_PROFILES = {
 	MAGE = {
 		Arcane = {
@@ -402,6 +468,7 @@ local WEIGHT_PROFILES = {
 				ITEM_MOD_STRENGTH_SHORT = 1.0,
 				ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 5.0,
 			},
+			[2] = ROGUE_GENERIC_T5, [3] = ROGUE_GENERIC_T6, [4] = ROGUE_GENERIC_T6, [5] = ROGUE_GENERIC_SUNWELL,
 		},
 		Combat = {
 			[1] = { -- Inferido: RAID_COMBAT. Expertise restaurada (ver punto 2 de
@@ -415,6 +482,7 @@ local WEIGHT_PROFILES = {
 				ITEM_MOD_STRENGTH_SHORT = 1.1,
 				ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 6.5,
 			},
+			[2] = ROGUE_GENERIC_T5, [3] = ROGUE_GENERIC_T6, [4] = ROGUE_GENERIC_T6, [5] = ROGUE_GENERIC_SUNWELL,
 		},
 		Subtlety = {
 			[1] = { -- OJO: la fuente no tiene variante PvE/raid para Subtlety, solo
@@ -428,6 +496,7 @@ local WEIGHT_PROFILES = {
 				ITEM_MOD_ARMOR_PENETRATION_RATING_SHORT = 0.3,
 				ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 3.0,
 			},
+			[2] = ROGUE_GENERIC_T5, [3] = ROGUE_GENERIC_T6, [4] = ROGUE_GENERIC_T6, [5] = ROGUE_GENERIC_SUNWELL,
 		},
 	},
 	PRIEST = {
