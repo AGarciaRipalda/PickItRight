@@ -238,4 +238,40 @@ local doubleArmorResult
 ns.RequestItemStats(doubleArmorItem, function(stats) doubleArmorResult = stats end)
 assertEqual(doubleArmorResult.ITEM_MOD_ARMOR_SHORT, 25, "caso 12: RESISTANCE0_NAME se suma sobre un ITEM_MOD_ARMOR_SHORT ya existente")
 
+-- --- Trinkets/procs con valor proxy por item ID (investigación sobre --------
+-- AtlasLootClassic_TBCA_BIS a pedido del usuario) --------------------------
+-- Caso 13: Wolfshead Helm (8345) -- el caso real que motivó esto. Su valor
+-- real es 100% el efecto "Powershift: Energy Refund", que GetItemStats()
+-- no expone y que ni siquiera tiene una línea "Equip:" parseable -- sin
+-- PROC_ITEM_STAT_OVERRIDES, este ítem puntuaría 0 siempre.
+local wolfsheadHelm = "item:8345:0:0:0:0:0:0:0:70:0:0"
+loadedItems[wolfsheadHelm] = true
+statsByLink[wolfsheadHelm] = {} -- sin stats crudos, como en el juego real
+local wolfsheadResult
+ns.RequestItemStats(wolfsheadHelm, function(stats) wolfsheadResult = stats end)
+assertEqual(wolfsheadResult.ITEM_MOD_FERAL_ATTACK_POWER_SHORT, 80,
+	"caso 13: Wolfshead Helm recibe el valor proxy real (80 Ataque Feral) por su efecto de Powershift")
+
+-- Caso 14: un ítem con stats crudos reales Y un override de proc -- se
+-- suman, no se pisan (mismo criterio que Armor en el caso 12).
+local dragonspineTrophy = "item:28830:0:0:0:0:0:0:0:70:0:0"
+loadedItems[dragonspineTrophy] = true
+statsByLink[dragonspineTrophy] = { ITEM_MOD_CRIT_RATING_SHORT = 15 }
+local dragonspineResult
+ns.RequestItemStats(dragonspineTrophy, function(stats) dragonspineResult = stats end)
+assertEqual(dragonspineResult.ITEM_MOD_CRIT_RATING_SHORT, 15, "caso 14: stat crudo del trinket sigue presente")
+assertEqual(dragonspineResult.ITEM_MOD_HASTE_RATING_SHORT, 160, "caso 14: valor proxy del proc (Dragonspine Trophy) se suma aparte")
+
+-- Caso 15: un ítem que NO está en la tabla curada no debe agregar nada --
+-- PROC_ITEM_STAT_OVERRIDES es una lista curada, no un fallback genérico.
+local plainRing = "item:70009:0:0:0:0:0:0:0:70:0:0"
+loadedItems[plainRing] = true
+statsByLink[plainRing] = { ITEM_MOD_INTELLECT_SHORT = 12 }
+local plainRingResult
+ns.RequestItemStats(plainRing, function(stats) plainRingResult = stats end)
+assertEqual(plainRingResult.ITEM_MOD_INTELLECT_SHORT, 12, "caso 15: ítem fuera de la tabla curada no se altera")
+local plainRingKeys = 0
+for _ in pairs(plainRingResult) do plainRingKeys = plainRingKeys + 1 end
+assertEqual(plainRingKeys, 1, "caso 15: y no gana ninguna clave extra")
+
 print("OK: ItemStatsAnalyzer.lua supera la prueba de humo")

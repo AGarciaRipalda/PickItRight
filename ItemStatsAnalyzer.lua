@@ -184,6 +184,141 @@ end
 -- coincidía con ningún ITEM_MOD_X del perfil, puntuaba 0 en silencio -- bug
 -- real reportado por un usuario (Paladín tanque, capa con solo Armadura
 -- marcada "No es mejora" contra un slot vacío).
+--[[
+TRINKETS/PROCS/EFECTOS ON-USE — VALOR PROXY POR ITEM ID
+=========================================================
+Investigación a pedido del usuario: analizar `AtlasLootClassic_TBCA_BIS`
+(listas de BiS reales de la comunidad, addon instalado) reveló que ~6% de
+los ítems rank-1 se mantienen BiS en 3+ fases de contenido seguidas — la
+señal de que su valor viene de un efecto especial (on-use, proc, "Powershift:
+Energy Refund", etc.), no de sus stats crudos, porque ningún stat crudo
+posterior los supera. El caso más extremo: Wolfshead Helm (ítem 8345), BiS
+de cabeza para Druida Gato en las Fases 1-4 pese a ser un ítem de nivel
+bajísimo — su valor real es 100% el efecto "Powershift: reembolsa energía",
+que `GetItemStats()` no expone y que `AddEquipEffectStats` (bonos "Equip:
+X" de tooltip) tampoco puede mapear, porque no es un stat fijo tipo
+ITEM_MOD_X sino un efecto de mecánica específica.
+
+Nuestro modelo de scoring (suma de stats ponderados) no tiene forma de
+valorar esto por sí solo — necesita que ALGUIEN haga la conversión "este
+efecto vale aproximadamente N puntos de tal stat". SharpiesGearJudge
+(gear-scoring TBC real, instalado localmente) YA tiene esa conversión
+hecha, curada a mano ítem por ítem (`Database.lua`, tabla pasada a
+`AddOverrides` -> `MSC.TrinketDB`/`MSC.ItemOverrides`, campo `_AUTO_PROC`),
+con la matemática documentada en cada nota (ej. "Use: 43.3 Avg AP (2m CD)"
+= 260 AP de duración / tiempo de reutilización, promediado). Se porta esa
+tabla completa (~90 ítems reales, no un subconjunto arbitrario) tal cual,
+misma idea que ya usamos para pesos y caps: no inventar números propios
+cuando existe una fuente real ya verificada.
+
+Formato: [itemID] = { stat = "ITEM_MOD_X", val = N }. Wolfshead Helm
+(8345) es el caso que motivó esto: `ITEM_MOD_FERAL_ATTACK_POWER_SHORT`+80,
+el valor que SharpiesGearJudge asigna a su reembolso de energía.
+]]
+local PROC_ITEM_STAT_OVERRIDES = {
+	[9449]   = { stat = "ITEM_MOD_HASTE_RATING_SHORT", val = 150 }, -- Use: 50% Haste, burst
+	[8345]   = { stat = "ITEM_MOD_FERAL_ATTACK_POWER_SHORT", val = 80 }, -- Wolfshead Helm: Powershift Energy Refund
+	[833]    = { stat = "ITEM_MOD_HEALTH_REGENERATION_SHORT", val = 1.38 }, -- Lifestone
+	[11819]  = { stat = "ITEM_MOD_MANA_REGENERATION_SHORT", val = 1.67 },
+	[11832]  = { stat = "ITEM_MOD_MANA_REGENERATION_SHORT", val = 2.8 }, -- Burst of Knowledge
+	[17759]  = { stat = "ITEM_MOD_HEALTH_REGENERATION_SHORT", val = 1.39 },
+	[21777]  = { stat = "ITEM_MOD_MANA_REGENERATION_SHORT", val = 12 },
+	[24390]  = { stat = "ITEM_MOD_MANA_REGENERATION_SHORT", val = 6 }, -- Auslese's Light Channeler
+	[30841]  = { stat = "ITEM_MOD_MANA_REGENERATION_SHORT", val = 18.3 }, -- Lower City Prayerbook
+	[18354]  = { stat = "ITEM_MOD_SPELL_POWER_SHORT", val = 10 }, -- Imp Firebolt Dmg proxy
+	[18355]  = { stat = "ITEM_MOD_ATTACK_POWER_SHORT", val = 20 }, -- Pet Dmg +4% proxy
+	[18815]  = { stat = "ITEM_MOD_SPELL_POWER_SHORT", val = 15 }, -- Fire Thorns proxy
+	[18951]  = { stat = "ITEM_MOD_AGILITY_SHORT", val = 1 }, -- Reduced Fall Dmg proxy
+	[23836]  = { stat = "ITEM_MOD_ATTACK_POWER_SHORT", val = 140 },
+	[10577]  = { stat = "ITEM_MOD_ATTACK_POWER_SHORT", val = 10.5 },
+	[21756]  = { stat = "ITEM_MOD_AGILITY_SHORT", val = 5 }, -- Speed + Snare Immune proxy
+	[21758]  = { stat = "ITEM_MOD_ATTACK_POWER_SHORT", val = 4.5 },
+	[21760]  = { stat = "ITEM_MOD_BLOCK_VALUE_SHORT", val = 1.33 },
+	[21763]  = { stat = "ITEM_MOD_ATTACK_POWER_SHORT", val = 14 }, -- Summon Truesilver Boar
+	[21784]  = { stat = "ITEM_MOD_BLOCK_VALUE_SHORT", val = 2.33 },
+	[22954]  = { stat = "ITEM_MOD_HASTE_RATING_SHORT", val = 25 },
+	[23001]  = { stat = "ITEM_MOD_AGILITY_SHORT", val = 5 }, -- Threat Reduction proxy
+	[23040]  = { stat = "ITEM_MOD_BLOCK_VALUE_SHORT", val = 39.2 },
+	[22321]  = { stat = "ITEM_MOD_ATTACK_POWER_SHORT", val = 35 }, -- Heart of Wyrmthalak
+	[23206]  = { stat = "ITEM_MOD_ATTACK_POWER_SHORT", val = 150 }, -- Mark of the Champion (Melee)
+	[23207]  = { stat = "ITEM_MOD_SPELL_POWER_SHORT", val = 85 }, -- Mark of the Champion (Caster)
+	[23041]  = { stat = "ITEM_MOD_ATTACK_POWER_SHORT", val = 43.3 }, -- Slayer's Crest
+	[23046]  = { stat = "ITEM_MOD_SPELL_POWER_SHORT", val = 21.7 }, -- Restrained Essence of Sapphiron
+	[24124]  = { stat = "ITEM_MOD_ATTACK_POWER_SHORT", val = 20 }, -- Figurine: Felsteel Boar
+	[28288]  = { stat = "ITEM_MOD_HASTE_RATING_SHORT", val = 21.7 }, -- Abacus of Violent Odds
+	[29383]  = { stat = "ITEM_MOD_ATTACK_POWER_SHORT", val = 46.3 }, -- Bloodlust Brooch
+	[29776]  = { stat = "ITEM_MOD_ATTACK_POWER_SHORT", val = 33.3 }, -- Core of Ar'kelos
+	[30293]  = { stat = "ITEM_MOD_SPELL_HEALING_DONE_SHORT", val = 39.7 }, -- Heavenly Inspiration
+	[30665]  = { stat = "ITEM_MOD_SPIRIT_SHORT", val = 50 }, -- Earring of Soulful Meditation
+	[23047]  = { stat = "ITEM_MOD_SPELL_HEALING_DONE_SHORT", val = 37.5 }, -- Eye of the Dead
+	[25619]  = { stat = "ITEM_MOD_SPELL_POWER_SHORT", val = 17.3 }, -- Glowing Crystal Insignia (Horde)
+	[25620]  = { stat = "ITEM_MOD_SPELL_POWER_SHORT", val = 17.3 }, -- Ancient Crystal Talisman (Alliance)
+	[25628]  = { stat = "ITEM_MOD_ATTACK_POWER_SHORT", val = 23.1 }, -- Ogre Mauler's Badge
+	[25633]  = { stat = "ITEM_MOD_ATTACK_POWER_SHORT", val = 23.1 }, -- Uniting Charm
+	[25634]  = { stat = "ITEM_MOD_SPELL_HEALING_DONE_SHORT", val = 35.5 }, -- Oshu'gun Relic
+	[27828]  = { stat = "ITEM_MOD_SPELL_HEALING_DONE_SHORT", val = 47 }, -- Warp-Scarab Brooch
+	[26055]  = { stat = "ITEM_MOD_MANA_REGENERATION_SHORT", val = 37.5 }, -- Oculus of the Hidden Eye
+	[27416]  = { stat = "ITEM_MOD_HEALTH_REGENERATION_SHORT", val = 37.5 }, -- Fetish of the Fallen
+	[28108]  = { stat = "ITEM_MOD_MANA_REGENERATION_SHORT", val = 100 }, -- Power Infused Mushroom
+	[28109]  = { stat = "ITEM_MOD_HEALTH_REGENERATION_SHORT", val = 100 }, -- Essence Infused Mushroom
+	[27920]  = { stat = "ITEM_MOD_MANA_REGENERATION_SHORT", val = 10 }, -- Mark of Conquest
+	[27921]  = { stat = "ITEM_MOD_MANA_REGENERATION_SHORT", val = 10 }, -- Mark of Conquest
+	[28590]  = { stat = "ITEM_MOD_SPELL_HEALING_DONE_SHORT", val = 30 }, -- Ribbon of Sacrifice
+	[30446]  = { stat = "ITEM_MOD_ATTACK_POWER_SHORT", val = 70 }, -- Solarian's Sapphire
+	[30448]  = { stat = "ITEM_MOD_RANGED_ATTACK_POWER_SHORT", val = 40 }, -- Talon of Al'ar
+	[30621]  = { stat = "ITEM_MOD_AGILITY_SHORT", val = 5 }, -- Prism of Inner Calm
+	[30720]  = { stat = "ITEM_MOD_SPELL_POWER_SHORT", val = 28.1 }, -- Serpent-Coil Braid
+	[32483]  = { stat = "ITEM_MOD_SPELL_HASTE_RATING_SHORT", val = 29.2 }, -- The Skull of Gul'dan
+	[32654]  = { stat = "ITEM_MOD_ATTACK_POWER_SHORT", val = 36 }, -- Crystalforged Trinket
+	[33828]  = { stat = "ITEM_MOD_SPELL_HEALING_DONE_SHORT", val = 66 }, -- Tome of Diabolic Remedy
+	[33829]  = { stat = "ITEM_MOD_SPELL_POWER_SHORT", val = 35.2 }, -- Hex Shrunken Head
+	[33831]  = { stat = "ITEM_MOD_ATTACK_POWER_SHORT", val = 60 }, -- Berserker's Call
+	[34430]  = { stat = "ITEM_MOD_MANA_REGENERATION_SHORT", val = 33.3 }, -- Glimmering Naaru Sliver
+	[33832]  = { stat = "ITEM_MOD_HEALTH_SHORT", val = 145.8 }, -- Battlemaster's Determination
+	[34049]  = { stat = "ITEM_MOD_HEALTH_SHORT", val = 145.8 }, -- Battlemaster's Audacity
+	[34050]  = { stat = "ITEM_MOD_HEALTH_SHORT", val = 145.8 }, -- Battlemaster's Perseverance
+	[34578]  = { stat = "ITEM_MOD_HEALTH_SHORT", val = 145.8 }, -- Battlemaster's Determination
+	[34579]  = { stat = "ITEM_MOD_HEALTH_SHORT", val = 145.8 }, -- Battlemaster's Audacity
+	[34580]  = { stat = "ITEM_MOD_HEALTH_SHORT", val = 145.8 }, -- Battlemaster's Perseverance
+	[35694]  = { stat = "ITEM_MOD_ATTACK_POWER_SHORT", val = 20 }, -- Figurine: Khorium Boar
+	[35702]  = { stat = "ITEM_MOD_ATTACK_POWER_SHORT", val = 53.3 }, -- Figurine: Shadowsong Panther
+	[35703]  = { stat = "ITEM_MOD_MANA_REGENERATION_SHORT", val = 25 }, -- Figurine: Seaspray Albatross
+	[38287]  = { stat = "ITEM_MOD_ATTACK_POWER_SHORT", val = 46.3 }, -- Empty Mug of Direbrew
+	[38288]  = { stat = "ITEM_MOD_SPELL_HEALING_DONE_SHORT", val = 49.5 }, -- Direbrew Hops
+	[38289]  = { stat = "ITEM_MOD_BLOCK_VALUE_SHORT", val = 33.3 }, -- Coren's Lucky Coin
+	[38290]  = { stat = "ITEM_MOD_SPELL_POWER_SHORT", val = 25.8 }, -- Dark Iron Smoking Pipe
+	[185988] = { stat = "ITEM_MOD_HEALTH_REGENERATION_SHORT", val = 3.3 }, -- Communal Stone of Stoicism
+	-- TBC: trinkets/armas de proc con uptime promediado
+	[28830]  = { stat = "ITEM_MOD_HASTE_RATING_SHORT", val = 160 }, -- Dragonspine Trophy
+	[27683]  = { stat = "ITEM_MOD_SPELL_HASTE_RATING_SHORT", val = 42 }, -- Quagmirran's Eye
+	[30626]  = { stat = "ITEM_MOD_SPELL_POWER_SHORT", val = 63 }, -- Sextant of Unstable Currents
+	[30627]  = { stat = "ITEM_MOD_ATTACK_POWER_SHORT", val = 75 }, -- Tsunami Talisman
+	[32505]  = { stat = "ITEM_MOD_ARMOR_PENETRATION_RATING_SHORT", val = 186 }, -- Madness of the Betrayer
+	[34472]  = { stat = "ITEM_MOD_ATTACK_POWER_SHORT", val = 102 }, -- Shard of Contempt
+	[28773]  = { stat = "ITEM_MOD_ATTACK_POWER_SHORT", val = 55 }, -- Don Santos' Famous Hunting Rifle
+	[28573]  = { stat = "ITEM_MOD_ATTACK_POWER_SHORT", val = 60 }, -- Despair
+	[28729]  = { stat = "ITEM_MOD_ATTACK_POWER_SHORT", val = 50 }, -- Blight
+	[32262]  = { stat = "ITEM_MOD_ATTACK_POWER_SHORT", val = 60 }, -- Syphon of the Nathrezim
+	[29301]  = { stat = "ITEM_MOD_ATTACK_POWER_SHORT", val = 26 }, -- Band of Eternal Champion
+	[29305]  = { stat = "ITEM_MOD_SPELL_POWER_SHORT", val = 21 }, -- Band of Eternal Sage
+	[29309]  = { stat = "ITEM_MOD_SPELL_HEALING_DONE_SHORT", val = 37 }, -- Band of Eternal Restorer
+	[29313]  = { stat = "ITEM_MOD_ARMOR_SHORT", val = 133 }, -- Band of Eternal Defender
+}
+
+--- Suma el valor proxy de PROC_ITEM_STAT_OVERRIDES sobre `stats` (in-place),
+--- si `itemLink` corresponde a un ítem de la tabla. A diferencia de
+--- AddEquipEffectStats (parsea CUALQUIER línea "Equip:" con patrón
+--- genérico), esto es una lista curada ítem por ítem — solo aplica a los
+--- ~90 ítems reales portados de SharpiesGearJudge.
+local function AddProcItemStats(itemLink, stats)
+	local itemString = GetItemString(itemLink)
+	local itemID = itemString and GetItemID(itemString)
+	local override = itemID and PROC_ITEM_STAT_OVERRIDES[itemID]
+	if override then
+		stats[override.stat] = (stats[override.stat] or 0) + override.val
+	end
+end
+
 local function NormalizeArmorKey(stats)
 	local armorFromResistance0 = stats["RESISTANCE0_NAME"]
 	if armorFromResistance0 then
@@ -199,6 +334,7 @@ local function ExtractStats(itemLink)
 	local stats = GetItemStats(itemLink) or {}
 	NormalizeArmorKey(stats)
 	AddEquipEffectStats(itemLink, stats)
+	AddProcItemStats(itemLink, stats)
 	return stats
 end
 
