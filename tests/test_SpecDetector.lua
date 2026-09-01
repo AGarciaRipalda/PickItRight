@@ -41,12 +41,8 @@ check("MAGE",    { 40, 0, 0 },  "Caster", "mago con arcano dominante")
 check("PALADIN", { 40, 0, 0 },  "Healer", "paladín con sagrado dominante")
 
 -- --- Builds híbridas (Fase 9: casos de prueba explícitos) ----------------
--- Feral Druid es la limitación conocida y documentada del plan: un mismo
--- árbol cubre oso (Tank) y gato (Melee), y no hay forma de distinguirlos
--- solo con puntos de talento. Lo que hay que garantizar acá no es "acierta
--- el rol real", sino "resuelve a un valor determinístico sin romper".
 check("DRUID", { 40, 5, 3 },  "Caster", "druida con equilibrio dominante")
-check("DRUID", { 5, 40, 3 },  "Melee",  "druida feral (oso o gato) resuelve al default documentado")
+check("DRUID", { 5, 40, 3 },  "Melee",  "druida feral sin Thick Hide invertido resuelve a Gato (Melee), el default")
 check("DRUID", { 3, 5, 40 },  "Healer", "druida con restauración dominante")
 
 -- Empate exacto entre dos árboles: ScanDominantTalentTree usa `>` estricto,
@@ -91,5 +87,51 @@ assert(ns.context.activeTalentGroup == 2, "expone el grupo de spec dual activo p
 _G.GetActiveTalentGroup = nil
 check("MAGE", { 10, 0, 44 }, "Caster", "cliente sin spec dual (GetActiveTalentGroup ausente) sigue funcionando")
 assert(ns.context.activeTalentGroup == nil, "sin GetActiveTalentGroup, activeTalentGroup queda nil, no rompe")
+
+-- --- Desempate Oso/Gato (Druida Feral) ------------------------------------
+-- Mismo árbol de talentos (Feral, pestaña 2) cubre Oso (Tank) y Gato
+-- (Melee) -- SPEC_ROLES no puede distinguirlos con puntos totales
+-- solamente. Mecanismo real, verificado contra SharpiesGearJudge
+-- (Classes/TBC/Druid.lua, Druid:GetSpec): rank del talento "Thick Hide",
+-- 3+ = Oso, menos = Gato. Confirmado también con datos reales de la
+-- comunidad: AtlasLootClassic_TBCA_BIS mantiene listas de BiS separadas
+-- "DruidBear"/"DruidCat" -- la distinción importa de verdad.
+--
+-- La pestaña Feral se modela acá con 2 "talentos" (uno genérico + Thick
+-- Hide) en vez de 1 como el resto del archivo, para poder variar el rank
+-- de Thick Hide de forma independiente del total de puntos de la pestaña.
+local mockFeralTankRank
+local savedGetNumTalents, savedGetTalentInfo = GetNumTalents, GetTalentInfo
+_G.GetNumTalents = function(tabIndex)
+	if tabIndex == 2 then return 2 end
+	return 1
+end
+_G.GetTalentInfo = function(tabIndex, talentIndex)
+	if tabIndex == 2 and talentIndex == 2 then
+		return "Thick Hide", "icon", 1, 1, mockFeralTankRank or 0
+	end
+	return "Talent", "icon", 1, 1, mockPoints[tabIndex]
+end
+
+mockFeralTankRank = 3
+check("DRUID", { 5, 40, 3 }, "Tank", "3+ puntos en Thick Hide resuelve a Oso (Tank)")
+
+mockFeralTankRank = 5
+check("DRUID", { 5, 40, 3 }, "Tank", "más de 3 puntos en Thick Hide también resuelve a Oso")
+
+mockFeralTankRank = 2
+check("DRUID", { 5, 40, 3 }, "Melee", "menos de 3 puntos en Thick Hide resuelve a Gato (Melee)")
+
+mockFeralTankRank = 0
+check("DRUID", { 5, 40, 3 }, "Melee", "sin Thick Hide invertido, Gato (Melee) por defecto")
+
+-- El desempate es específico de Druida -- otra clase con "Melee" dominante
+-- (ej. Guerrero Armas) no debe activarlo aunque, por coincidencia de mock,
+-- hubiera algo llamado "Thick Hide" en su pestaña.
+mockFeralTankRank = 5
+check("WARRIOR", { 40, 5, 3 }, "Melee", "el desempate de Thick Hide no aplica a otras clases")
+
+_G.GetNumTalents = savedGetNumTalents
+_G.GetTalentInfo = savedGetTalentInfo
 
 print("OK: SpecDetector.lua supera la prueba de humo")

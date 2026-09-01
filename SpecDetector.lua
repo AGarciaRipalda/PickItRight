@@ -18,10 +18,11 @@ Roles: "Tank", "Healer", "Melee", "Caster".
 CÓMO EXPANDIR ESTA TABLA:
 1. Casos híbridos que un solo árbol no puede resolver (ej. Feral Druid:
    mismo árbol sirve para oso/Tank y gato/Melee). Este detector NO
-   distingue eso con puntos de talento solamente — no fuerces un 5º valor
-   en la fila, añade un paso de desempate aparte en DeriveRole() (p. ej.
-   leer GetShapeshiftForm(), o exponer un override manual del usuario) y
-   solo cae al valor de la tabla cuando ese desempate no aplica.
+   distingue eso con puntos de talento totales solamente — no fuerces un
+   5º valor en la fila, añade un paso de desempate aparte en DeriveRole()
+   y solo cae al valor de la tabla cuando ese desempate no aplica. Ver
+   FERAL_TANK_TALENT_NAME más abajo para el caso ya resuelto (Druida
+   Feral, desempate por rank del talento "Thick Hide").
 2. Clase o árbol nuevo: añade la fila `CLASE = { rolÁrbol1, rolÁrbol2,
    rolÁrbol3 }` respetando el orden real de pestañas de esa clase en el
    cliente (verificarlo en juego, no asumirlo).
@@ -42,11 +43,34 @@ local SPEC_ROLES = {
 	DRUID   = { "Caster", "Melee",  "Healer" }, -- Equilibrio, Feral (ver punto 1), Restauración
 }
 
+--[[
+DESEMPATE OSO/GATO (Druida Feral) — resuelve el punto 1 de arriba.
+====================================================================
+Mismo árbol de talentos (Feral) cubre Oso (Tank) y Gato (Melee); SPEC_ROLES
+no puede distinguirlos con puntos totales solamente. Mecanismo real,
+verificado contra SharpiesGearJudge (Classes/TBC/Druid.lua, función
+`Druid:GetSpec`): NO usa GetShapeshiftForm() (dependería de que el jugador
+esté shapeshifteado en el momento exacto de mirar el loot) — usa el rank
+del talento "Thick Hide" (supervivencia/mitigación, solo vale invertir en
+él si se está especceando para tanquear): 3+ puntos = Oso, menos = Gato.
+Confirmado con datos reales de la comunidad (AtlasLootClassic_TBCA_BIS
+mantiene listas de BiS separadas "DruidBear"/"DruidCat" — la distinción
+importa de verdad, no es un detalle menor).
+
+Nombre en inglés únicamente (mismo límite que AddEquipEffectStats en
+ItemStatsAnalyzer.lua — cliente en inglés): en otro idioma este desempate
+simplemente no encuentra el talento y el rol queda en "Melee" (el default
+de SPEC_ROLES), degradando con gracia en vez de romper.
+]]
+local FERAL_TANK_TALENT_NAME = "Thick Hide"
+local FERAL_TANK_TALENT_RANK_THRESHOLD = 3
+
 -- Recorre las 3 pestañas de talentos y devuelve el índice con más puntos
 -- invertidos, junto con la tabla completa de puntos por pestaña.
 local function ScanDominantTalentTree()
 	local dominantTab, dominantPoints = nil, -1
 	local pointsByTab = {}
+	local feralTankTalentRank = 0
 
 	-- Bug real encontrado en juego: este cliente ("TBC Anniversary") sí tiene
 	-- spec dual (a diferencia del TBC original/2021, que nunca lo tuvo) --
@@ -80,11 +104,15 @@ local function ScanDominantTalentTree()
 		local pointsSpent = 0
 		local numTalents = GetNumTalents(tabIndex) or 0
 		for talentIndex = 1, numTalents do
-			local _, _, _, _, rank = GetTalentInfo(tabIndex, talentIndex)
+			local name, _, _, _, rank = GetTalentInfo(tabIndex, talentIndex)
 			-- tonumber(), no "or 0": la misma clase de dato-no-listo-todavía
 			-- que ya se vio con GetTalentTabInfo ("" en vez de número) podría
 			-- darse acá también -- mejor no asumir que rank siempre es numérico.
-			pointsSpent = pointsSpent + (tonumber(rank) or 0)
+			rank = tonumber(rank) or 0
+			pointsSpent = pointsSpent + rank
+			if name == FERAL_TANK_TALENT_NAME then
+				feralTankTalentRank = rank
+			end
 		end
 		pointsByTab[tabIndex] = pointsSpent
 		if pointsSpent > dominantPoints then
@@ -92,14 +120,24 @@ local function ScanDominantTalentTree()
 		end
 	end
 
-	return dominantTab, pointsByTab, activeGroup
+	return dominantTab, pointsByTab, activeGroup, feralTankTalentRank
 end
 
 -- nil si la clase o el árbol dominante no están en SPEC_ROLES (clase nueva
 -- todavía no mapeada, o sin puntos gastados en ningún árbol).
-local function DeriveRole(classToken, dominantTab)
+local function DeriveRole(classToken, dominantTab, feralTankTalentRank)
 	local roles = SPEC_ROLES[classToken]
-	return roles and dominantTab and roles[dominantTab] or nil
+	local role = roles and dominantTab and roles[dominantTab] or nil
+
+	-- Desempate Oso/Gato (ver el comentario grande arriba) -- solo aplica
+	-- cuando el árbol dominante ya resolvió a "Melee" para un Druida, que
+	-- es exactamente (y únicamente) lo que SPEC_ROLES.DRUID[2] (Feral)
+	-- devuelve.
+	if classToken == "DRUID" and role == "Melee" and (feralTankTalentRank or 0) >= FERAL_TANK_TALENT_RANK_THRESHOLD then
+		return "Tank"
+	end
+
+	return role
 end
 
 -- Única función que escribe ns.context.role — el resto del addon debe
@@ -107,14 +145,14 @@ end
 local function RefreshCharacterState()
 	local _, classToken = UnitClass("player")
 	local _, raceToken = UnitRace("player")
-	local dominantTab, pointsByTab, activeGroup = ScanDominantTalentTree()
+	local dominantTab, pointsByTab, activeGroup, feralTankTalentRank = ScanDominantTalentTree()
 
 	ns.context.class = classToken
 	ns.context.race = raceToken
 	ns.context.dominantTab = dominantTab
 	ns.context.pointsByTab = pointsByTab
 	ns.context.activeTalentGroup = activeGroup
-	ns.context.role = DeriveRole(classToken, dominantTab)
+	ns.context.role = DeriveRole(classToken, dominantTab, feralTankTalentRank)
 end
 
 ns.RefreshCharacterState = RefreshCharacterState
