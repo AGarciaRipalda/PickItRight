@@ -73,6 +73,23 @@ mockItems.mace = { name = "Maza", equipLoc = "INVTYPE_WEAPON", classID = 2, subc
 eligible = ns.IsEligible("mace", { ITEM_MOD_SPELL_POWER_SHORT = 15 })
 assertEqual(eligible, true, "caso 5: maza en un sacerdote debe aceptarse")
 
+-- Casos 5b-5c (bug real, verificado contra SharpiesGearJudge Classes/TBC/
+-- <Clase>.lua ValidWeapons): Pícaro NUNCA pudo usar Hachas de una mano en
+-- TBC real, pero nuestra tabla se lo permitía -- y a Druida le faltaban
+-- Armas de Puño, que sí puede usar.
+mockItems.axe1h = { name = "Hacha", equipLoc = "INVTYPE_WEAPON", classID = 2, subclassID = 0 }
+ns.context = { class = "ROGUE", role = "Melee" }
+ns.GetActiveWeightProfile = function() return { ITEM_MOD_ATTACK_POWER_SHORT = 1.0 } end
+eligible, reason = ns.IsEligible("axe1h", { ITEM_MOD_ATTACK_POWER_SHORT = 10 })
+assertEqual(eligible, false, "caso 5b: Pícaro no puede usar Hachas de una mano (bug real corregido)")
+assert(reason:find("no entrenada"), "caso 5b: motivo debe mencionar proficiencia de armas")
+
+mockItems.fistWeapon = { name = "Arma de Puño", equipLoc = "INVTYPE_WEAPON", classID = 2, subclassID = 13 }
+ns.context = { class = "DRUID", role = "Melee" }
+ns.GetActiveWeightProfile = function() return { ITEM_MOD_ATTACK_POWER_SHORT = 1.0 } end
+eligible = ns.IsEligible("fistWeapon", { ITEM_MOD_ATTACK_POWER_SHORT = 10 })
+assertEqual(eligible, true, "caso 5c: Druida SÍ puede usar Armas de Puño (faltaba en la tabla)")
+
 -- Caso 6: pícaro encuentra un ítem itemizado para healer (solo
 -- Espíritu/MP5, sin nada relevante para dps físico) -> rechazado.
 mockItems.healerTrinket = { name = "Trinket de Sanador", equipLoc = "INVTYPE_TRINKET", classID = 4, subclassID = 0 }

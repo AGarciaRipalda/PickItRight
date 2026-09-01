@@ -9,13 +9,21 @@ espadas, Rogue sin armas a dos manos) — verificar cada fila contra el
 cliente (intentar equipar) o una fuente de theorycrafting actualizada
 antes de confiar en ellas para bloquear recomendaciones reales.
 
-WEAPON_PROFICIENCY sigue SIN verificar: se revisaron dos addons TBC reales
-instalados en esta máquina (SharpiesGearJudge, gear-scoring; Gargul, loot)
-y ninguno mantiene una tabla de armas propia como esta — ambos delegan la
-pregunta "¿puede este personaje usar este ítem?" al cliente
-(`IsEquippableItem` o un wrapper propio). No reemplacé esta tabla por esa
-llamada porque no verifiqué la semántica exacta de armas específicamente
-— candidato para la próxima verificación.
+WEAPON_PROFICIENCY: verificada y corregida contra `SharpiesGearJudge`
+(`Classes/TBC/<Clase>.lua`, tabla `<Clase>.ValidWeapons` — SÍ existe, la
+nota anterior de que "ningún addon mantiene tabla propia" era incorrecta:
+lo que pasa es que `Evaluator.lua` usa `IsEquippableItem` ADEMÁS de esta
+tabla, no en su lugar — `MSC:Internal_ScanBestMainHand` exige ambas
+condiciones juntas, señal de que `IsEquippableItem` por sí sola no basta
+para proficiencia de TIPO de arma, solo cubre otras condiciones de
+equipabilidad (nivel, facción, etc.). 6 de 9 clases coincidían exacto
+(Guerrero, Paladín, Cazador, Sacerdote, Mago, Brujo); 2 discrepancias
+reales corregidas: Pícaro tenía Hachas de una mano (`[0]`) que la fuente
+NO permite (bug real, un Pícaro nunca pudo usar hachas en TBC); Druida le
+faltaba Armas de Puño (`[13]`), que la fuente SÍ permite. Chamán tiene una
+entrada extra en la fuente (`[6]`) marcada en su propio comentario como
+"Technically Armor" (probablemente un hack interno para trackear
+escudos, no una proficiencia de arma real) — no se portó.
 
 ARMOR_PROFICIENCY (más abajo, GetMaxArmorTier) SÍ se reemplazó, tras un
 bug real reportado: un Paladín tanque de nivel 10 (rol/pestaña dominante
@@ -90,13 +98,13 @@ local WEAPON_PROFICIENCY = {
 	PALADIN = { [0] = true, [1] = true, [4] = true, [5] = true, [6] = true, [7] = true, [8] = true },
 	HUNTER  = { [0] = true, [1] = true, [2] = true, [3] = true, [6] = true, [7] = true, [8] = true,
 		[10] = true, [13] = true, [15] = true, [16] = true, [18] = true },
-	ROGUE   = { [0] = true, [2] = true, [3] = true, [4] = true, [7] = true, [13] = true,
+	ROGUE   = { [2] = true, [3] = true, [4] = true, [7] = true, [13] = true,
 		[15] = true, [16] = true, [18] = true },
 	PRIEST  = { [4] = true, [10] = true, [15] = true, [19] = true },
 	SHAMAN  = { [0] = true, [1] = true, [4] = true, [5] = true, [10] = true, [13] = true, [15] = true },
 	MAGE    = { [7] = true, [10] = true, [15] = true, [19] = true },
 	WARLOCK = { [7] = true, [10] = true, [15] = true, [19] = true },
-	DRUID   = { [4] = true, [5] = true, [10] = true, [15] = true },
+	DRUID   = { [4] = true, [5] = true, [10] = true, [13] = true, [15] = true },
 }
 
 -- Stats considerados contraproducentes/irrelevantes por rol (ns.context.role
