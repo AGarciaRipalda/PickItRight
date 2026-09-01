@@ -246,8 +246,16 @@ local WEIGHT_PROFILES = {
 		Protection = {
 			[1] = { -- EndgameTabMap: DEEP_PROT. Expertise restaurada (ver punto 2
 				-- de la cabecera de WEIGHT_PROFILES) con el valor real de la
-				-- fuente.
-				ITEM_MOD_STAMINA_SHORT = 1.6,
+				-- fuente. Reordenado contra Icy Veins (protection-warrior-tank-
+				-- pve-stat-priority: Aguante > Armadura > Defensa > Resiliencia >
+				-- Agilidad > Esquiva > Parada > Valor de Bloqueo) -- la fuente NO
+				-- pesa Armadura en esta fila (solo en bloques de leveling, que no
+				-- se mezclan acá); se reusa el valor de Paladín Protección (0.12,
+				-- misma fuente, mismo concepto "tanque de placas") por analogía,
+				-- no como número inventado desde cero. Aguante y Agilidad subidos
+				-- para respetar el orden de la guía.
+				ITEM_MOD_STAMINA_SHORT = 2.5,
+				ITEM_MOD_ARMOR_SHORT = 0.12,
 				ITEM_MOD_DEFENSE_SKILL_RATING_SHORT = 2.4,
 				ITEM_MOD_BLOCK_VALUE_SHORT = 0.7,
 				ITEM_MOD_DODGE_RATING_SHORT = 1.0,
@@ -257,19 +265,25 @@ local WEIGHT_PROFILES = {
 				ITEM_MOD_EXPERTISE_RATING_SHORT = 1.0,
 				ITEM_MOD_RESILIENCE_RATING_SHORT = 0.8,
 				ITEM_MOD_STRENGTH_SHORT = 0.6,
-				ITEM_MOD_AGILITY_SHORT = 0.5,
+				ITEM_MOD_AGILITY_SHORT = 1.05,
 				ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 1.5,
 			},
 		},
 	},
 	PALADIN = {
 		Holy = {
-			[1] = { -- EndgameTabMap: HOLY_RAID
-				ITEM_MOD_INTELLECT_SHORT = 1.75,
-				ITEM_MOD_SPELL_HEALING_DONE_SHORT = 1.0,
-				ITEM_MOD_SPELL_POWER_SHORT = 0.9,
+			[1] = { -- EndgameTabMap: HOLY_RAID. Reordenado contra Icy Veins
+				-- (holy-paladin-healer-pve-stat-priority: Poder de Curación >
+				-- Mp5 > Crítico > Intelecto > Celeridad) -- la fuente (comentario
+				-- propio "INTELLECT, The Stat King in 2.5.5") está tuneada para
+				-- el meta tardío de Sunwell, donde Intelecto supera a Curación;
+				-- para Fase 1 se prioriza la curación directa primero, siguiendo
+				-- la guía general en vez de ese meta específico.
+				ITEM_MOD_INTELLECT_SHORT = 1.5,
+				ITEM_MOD_SPELL_HEALING_DONE_SHORT = 2.2,
+				ITEM_MOD_SPELL_POWER_SHORT = 2.1,
 				ITEM_MOD_SPELL_HASTE_RATING_SHORT = 1.1,
-				ITEM_MOD_SPELL_CRIT_RATING_SHORT = 1.25,
+				ITEM_MOD_SPELL_CRIT_RATING_SHORT = 1.8,
 				ITEM_MOD_MANA_REGENERATION_SHORT = 2.0,
 				ITEM_MOD_STAMINA_SHORT = 0.2,
 				ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 0.02,
@@ -323,39 +337,53 @@ local WEIGHT_PROFILES = {
 	},
 	HUNTER = {
 		BeastMastery = {
-			[1] = { -- Sin EndgameTabMap en la fuente; inferido: RAID_BM (variante PvE estándar).
-				ITEM_MOD_HIT_RATING_SHORT = 1.9,
+			[1] = { -- Sin EndgameTabMap en la fuente; inferido: RAID_BM (variante
+				-- PvE estándar). Reordenado contra Icy Veins
+				-- (beast-mastery-hunter-dps-pve-stat-priority: Golpe >
+				-- Penetración > Agilidad > Ataque > Crítico) -- la fuente tenía
+				-- Penetración como el peso más bajo, muy por debajo de
+				-- Agilidad/Golpe/Crítico, al revés de la guía. Ataque también
+				-- subido por encima de Crítico.
+				ITEM_MOD_HIT_RATING_SHORT = 2.0,
+				ITEM_MOD_ARMOR_PENETRATION_RATING_SHORT = 1.95,
 				ITEM_MOD_AGILITY_SHORT = 1.9,
-				ITEM_MOD_ATTACK_POWER_SHORT = 1.0,
-				ITEM_MOD_RANGED_ATTACK_POWER_SHORT = 1.0,
+				ITEM_MOD_ATTACK_POWER_SHORT = 1.35,
+				ITEM_MOD_RANGED_ATTACK_POWER_SHORT = 1.35,
 				ITEM_MOD_CRIT_RATING_SHORT = 1.3,
 				ITEM_MOD_HASTE_RATING_SHORT = 1.2,
-				ITEM_MOD_ARMOR_PENETRATION_RATING_SHORT = 0.3,
 				ITEM_MOD_INTELLECT_SHORT = 0.4,
 				ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 12.0,
 			},
 		},
 		Marksmanship = {
-			[1] = { -- Inferido: RAID_MM
+			[1] = { -- Inferido: RAID_MM. Mismo reordenamiento que BM contra Icy
+				-- Veins (marksmanship-hunter-dps-pve-stat-priority: Golpe >
+				-- Penetración > Agilidad > Ataque > Crítico) -- Agilidad estaba
+				-- por encima de Golpe, al revés de la guía.
+				ITEM_MOD_HIT_RATING_SHORT = 2.3,
+				ITEM_MOD_ARMOR_PENETRATION_RATING_SHORT = 2.25,
 				ITEM_MOD_AGILITY_SHORT = 2.2,
-				ITEM_MOD_ATTACK_POWER_SHORT = 1.0,
-				ITEM_MOD_RANGED_ATTACK_POWER_SHORT = 1.0,
-				ITEM_MOD_ARMOR_PENETRATION_RATING_SHORT = 0.5,
+				ITEM_MOD_ATTACK_POWER_SHORT = 1.35,
+				ITEM_MOD_RANGED_ATTACK_POWER_SHORT = 1.35,
 				ITEM_MOD_CRIT_RATING_SHORT = 1.3,
-				ITEM_MOD_HIT_RATING_SHORT = 1.9,
 				ITEM_MOD_INTELLECT_SHORT = 0.5,
 				ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 13.0,
 			},
 		},
 		Survival = {
-			[1] = { -- Inferido: RAID_SURV
+			[1] = { -- Inferido: RAID_SURV. Reordenado contra Icy Veins
+				-- (survival-hunter-dps-pve-stat-priority: Agilidad > Crítico >
+				-- Golpe (tope muy bajo, 2%, por Pies Firmes) > Penetración >
+				-- Ataque) -- Golpe estaba por encima de Crítico (correcto para
+				-- BM/MM, pero no para Superviviente, cuyo tope de Golpe es
+				-- trivial) y Penetración por debajo de Ataque, ambos al revés.
 				ITEM_MOD_AGILITY_SHORT = 3.0, -- Expose Weakness
-				ITEM_MOD_HIT_RATING_SHORT = 1.9,
-				ITEM_MOD_CRIT_RATING_SHORT = 1.1,
+				ITEM_MOD_CRIT_RATING_SHORT = 2.0,
+				ITEM_MOD_HIT_RATING_SHORT = 1.5,
+				ITEM_MOD_ARMOR_PENETRATION_RATING_SHORT = 0.7,
 				ITEM_MOD_ATTACK_POWER_SHORT = 0.6,
 				ITEM_MOD_RANGED_ATTACK_POWER_SHORT = 0.6,
 				ITEM_MOD_INTELLECT_SHORT = 0.6, -- Thrill of the Hunt
-				ITEM_MOD_ARMOR_PENETRATION_RATING_SHORT = 0.2,
 				ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 10.0,
 			},
 		},
@@ -414,14 +442,18 @@ local WEIGHT_PROFILES = {
 			},
 		},
 		Holy = {
-			[1] = { -- Inferido: HOLY_DEEP
-				ITEM_MOD_SPELL_HEALING_DONE_SHORT = 1.0,
-				ITEM_MOD_SPELL_POWER_SHORT = 1.0,
+			[1] = { -- Inferido: HOLY_DEEP. Reordenado contra Icy Veins
+				-- (holy-priest-healer-pve-stat-priority: Celeridad > Poder de
+				-- Curación > Crítico > Espíritu > Intelecto > Mp5 > Aguante) --
+				-- la fuente tenía Mp5 como el peso más alto y Celeridad casi el
+				-- más bajo, al revés de la prioridad general de la guía.
+				ITEM_MOD_SPELL_HEALING_DONE_SHORT = 2.2,
+				ITEM_MOD_SPELL_POWER_SHORT = 2.2,
 				ITEM_MOD_SPIRIT_SHORT = 1.1, -- Spiritual Guidance
-				ITEM_MOD_MANA_REGENERATION_SHORT = 2.5,
+				ITEM_MOD_MANA_REGENERATION_SHORT = 0.5,
 				ITEM_MOD_INTELLECT_SHORT = 0.8,
-				ITEM_MOD_SPELL_HASTE_RATING_SHORT = 0.6,
-				ITEM_MOD_SPELL_CRIT_RATING_SHORT = 0.4,
+				ITEM_MOD_SPELL_HASTE_RATING_SHORT = 2.4,
+				ITEM_MOD_SPELL_CRIT_RATING_SHORT = 1.6,
 			},
 		},
 		Shadow = {
@@ -578,12 +610,18 @@ local WEIGHT_PROFILES = {
 			},
 		},
 		Restoration = {
-			[1] = { -- EndgameTabMap: RESTO_TREE
-				ITEM_MOD_SPELL_HEALING_DONE_SHORT = 1.0,
+			[1] = { -- EndgameTabMap: RESTO_TREE. Reordenado contra Icy Veins
+				-- (restoration-druid-healer-pve-stat-priority: Poder de
+				-- Curación > Celeridad > Espíritu > Mp5 > Intelecto > Crítico >
+				-- Aguante) -- la fuente tenía Mp5 como el peso más alto y
+				-- Celeridad casi el más bajo, al revés de la prioridad de la
+				-- guía (los HoT de Druida no tickean más rápido con Celeridad,
+				-- pero igual pesa más que Mp5 según Icy Veins).
+				ITEM_MOD_SPELL_HEALING_DONE_SHORT = 2.4,
+				ITEM_MOD_SPELL_HASTE_RATING_SHORT = 2.2,
 				ITEM_MOD_SPIRIT_SHORT = 1.35,
-				ITEM_MOD_MANA_REGENERATION_SHORT = 2.0,
+				ITEM_MOD_MANA_REGENERATION_SHORT = 1.0,
 				ITEM_MOD_INTELLECT_SHORT = 0.7,
-				ITEM_MOD_SPELL_HASTE_RATING_SHORT = 0.6,
 				ITEM_MOD_SPELL_CRIT_RATING_SHORT = 0.3,
 				ITEM_MOD_STAMINA_SHORT = 0.2,
 			},

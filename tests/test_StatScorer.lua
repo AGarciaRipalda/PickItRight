@@ -111,7 +111,7 @@ assertEqual(priestShadow.ITEM_MOD_HIT_SPELL_RATING_SHORT, 1.4, "Sacerdote Sombra
 ns.context = { class = "HUNTER", dominantTab = 1 } -- Beast Mastery
 local hunterBM = ns.GetActiveWeightProfile()
 assert(hunterBM, "Cazador Bestias debía resolver perfil")
-assertEqual(hunterBM.ITEM_MOD_RANGED_ATTACK_POWER_SHORT, 1.0, "Cazador Bestias: poder de ataque a distancia (stat separado en TBC)")
+assertEqual(hunterBM.ITEM_MOD_RANGED_ATTACK_POWER_SHORT, 1.35, "Cazador Bestias: poder de ataque a distancia (stat separado en TBC), subido por encima de Crítico contra Icy Veins")
 
 ns.context = { class = "DRUID", dominantTab = 2 } -- Feral
 local druidFeral = ns.GetActiveWeightProfile()
