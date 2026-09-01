@@ -22,6 +22,10 @@ local function GetItemID(itemString)
 	return itemString and tonumber(itemString:match("item:(%d+)"))
 end
 
+-- Compartido con ItemFilter.lua (bonos de set 2pc/4pc): necesita resolver
+-- itemID a partir de un link para consultar la tabla de membresía de sets.
+ns.GetItemID = GetItemID
+
 --[[
 BONOS "EQUIP: X" — REVIERTE A PROPÓSITO LA REGLA ORIGINAL DE "NUNCA
 PARSEAR TOOLTIP" (documentada desde la Fase 2)

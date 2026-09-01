@@ -270,6 +270,285 @@ local EQUIP_SLOTS = {
 	INVTYPE_RANGEDRIGHT = { "RangedSlot" },
 }
 
+--[[
+BONOS DE SET (2pc/4pc) — último punto de "en que mas areas podriamos
+mejorar?" / "todos, uno a uno". Nuestro modelo suma stats ítem por ítem;
+no tiene forma de valorar que la 2ª o 4ª pieza de un mismo set desbloquea
+un bono extra (stat fijo, o directamente un "score" sin stat real detrás,
+ej. un proc). Sin esto, un ítem que completa un 4pc real puede puntuar
+por debajo de una pieza sin set con mejores stats crudos.
+
+Fuente: SharpiesGearJudge (Data_Sets.lua, tablas `tbcSets` -- membresía
+itemID->set -- y `tbcScores` -- valor por umbral de piezas, formato
+`{stats={ITEM_MOD_X=N}}` o `{score=N}` cuando el bono es un proc/efecto
+sin stat equivalente directo, mismo criterio que PROC_ITEM_STAT_OVERRIDES
+en ItemStatsAnalyzer.lua). Alcance: SOLO sets de PvE (crafteados,
+Dungeon Set 3, Tier 4/5/6, la legendaria Warglaives, y 3 sets "niche" de
+mazmorra con bono numérico real) -- se excluyen a propósito los sets de
+Arena (S1-S4) y Honor nivel 70: están tuneados para Resiliencia, un stat
+que ningún WEIGHT_PROFILES de acá pondera de verdad, y la propia fuente
+los marca "Approx Values" (confianza más baja que el resto de la tabla).
+]]
+local SET_ITEM_MEMBERSHIP = {}
+local SET_BONUS_SCORES = {}
+
+do
+	-- [setID] = { itemID, itemID, ... } -- todas las piezas del set,
+	-- cualquier cantidad de ellas cuenta para los umbrales de abajo.
+	local SET_ITEMS = {
+		-- Crafteados (Sastrería/Peletería/Herrería)
+		[559] = { 24266, 24262 }, -- Spellstrike
+		[571] = { 24264, 24261 }, -- Whitemend
+		[619] = { 29525, 29527, 29526 }, -- Primalstrike
+		[552] = { 21848, 21847, 21846 }, -- Wrath of Spellfire
+		[554] = { 21874, 21875, 21873 }, -- Primal Mooncloth
+		[570] = { 23574, 23576, 23575, 23577, 23572, 23573, 23571, 23570 }, -- Burning Rage
+		[617] = { 29519, 29521, 29520 }, -- Netherstrike
+		[618] = { 29522, 29523, 29524 }, -- Windhawk
+
+		-- Dungeon Set 3
+		[650] = { 28275, 27801, 28228, 27474, 27874 }, -- Beast Lord (Hunter)
+		[653] = { 28350, 27803, 28205, 27475, 27977 }, -- Bold Armor (Plate Tank)
+		[660] = { 28192, 27713, 28401, 27528, 27936 }, -- Desolation (Plate DPS)
+		[659] = { 28224, 27797, 28264, 27531, 27837 }, -- Wastewalker (Rogue/Druid)
+		[658] = { 28193, 27796, 28191, 27465, 27907 }, -- Mana-Etched (Mage/Lock)
+		[662] = { 28413, 27775, 28230, 27536, 27875 }, -- Hallowed (Priest Heal)
+		[644] = { 28415, 27778, 28232, 27537, 27948 }, -- Oblivion (Warlock/Shadow Priest)
+		[620] = { 28414, 27776, 28204, 27509, 27908 }, -- Assassination (Rogue)
+		[630] = { 28349, 27802, 28231, 27510, 27909 }, -- Tidefury (Shaman)
+		[647] = { 28278, 27738, 28229, 27508, 27838 }, -- Incanter's (Mage)
+		[637] = { 28348, 27737, 28202, 27468, 27873 }, -- Moonglade (Druid)
+		[661] = { 27712, 27910, 28194, 28226, 27489 }, -- Doomplate (Warrior)
+		[623] = { 28285, 27739, 28203, 27535, 27839 }, -- Righteous (Paladin)
+
+		-- Tier 4
+		[655] = { 29021, 29023, 29019, 29020, 29022 }, -- Warbringer DPS
+		[654] = { 29011, 29016, 29012, 29017, 29015 }, -- Warbringer Tank
+		[624] = { 29061, 29064, 29062, 29065, 29063 }, -- Justicar Tank
+		[625] = { 29068, 29070, 29066, 29067, 29069 }, -- Justicar Heal
+		[626] = { 29073, 29075, 29071, 29072, 29074 }, -- Justicar Ret
+		[651] = { 29081, 29084, 29082, 29085, 29083 }, -- Demon Stalker (Hunter)
+		[621] = { 29044, 29047, 29045, 29048, 29046 }, -- Netherblade (Rogue)
+		[640] = { 29098, 29100, 29096, 29097, 29099 }, -- Malorne Feral
+		[638] = { 29086, 29089, 29087, 29090, 29088 }, -- Malorne Balance
+		[641] = { 29093, 29095, 29091, 29092, 29094 }, -- Malorne Resto
+		[631] = { 29033, 29034, 29035, 29036, 29037 }, -- Cyclone Enh
+		[633] = { 29028, 29031, 29029, 29032, 29030 }, -- Cyclone Ele
+		[632] = { 29038, 29039, 29040, 29041, 29042 }, -- Cyclone Resto
+		[648] = { 29076, 29079, 29077, 29080, 29078 }, -- Aldor (Mage)
+		[645] = { 28963, 28967, 28964, 28968, 28966 }, -- Voidheart (Warlock)
+		[663] = { 29049, 29054, 29050, 29055, 29053 }, -- Incarnate Shadow
+		[664] = { 29058, 29060, 29056, 29057, 29059 }, -- Incarnate Heal
+
+		-- Tier 5
+		[656] = { 30115, 30117, 30113, 30114, 30116 }, -- Destroyer DPS
+		[657] = { 30120, 30122, 30118, 30119, 30121 }, -- Destroyer Tank
+		[627] = { 30136, 30138, 30134, 30135, 30137 }, -- Crystalforge Ret
+		[628] = { 30125, 30127, 30123, 30124, 30126 }, -- Crystalforge Tank
+		[629] = { 30131, 30133, 30129, 30130, 30132 }, -- Crystalforge Heal
+		[652] = { 30141, 30143, 30139, 30140, 30142 }, -- Rift Stalker
+		[622] = { 30146, 30149, 30144, 30145, 30148 }, -- Deathmantle
+		[602] = { 30228, 30230, 30222, 30223, 30229 }, -- Nordrassil Resto
+		[642] = { 30216, 30217, 30219, 30220, 30221 }, -- Nordrassil Feral
+		[643] = { 30231, 30232, 30233, 30234, 30235 }, -- Nordrassil Balance
+		[649] = { 30206, 30210, 30196, 30205, 30207 }, -- Tirisfal (Mage)
+		[646] = { 30212, 30215, 30214, 30211, 30213 }, -- Corruptor (Warlock)
+		[665] = { 30152, 30154, 30150, 30151, 30153 }, -- Avatar Heal
+		[666] = { 30161, 30163, 30159, 30160, 30162 }, -- Avatar Shadow
+		[634] = { 30166, 30168, 30164, 30165, 30167 }, -- Cataclysm Ele
+		[635] = { 30185, 30189, 30190, 30192, 30194 }, -- Cataclysm Enh
+		[636] = { 30171, 30172, 30173, 30169, 30170 }, -- Cataclysm Resto
+		[677] = { 31040, 31046, 31049, 34446, 31037, 34554, 34571 }, -- Thunderheart Resto
+		[678] = { 31035, 31041, 31045, 34445, 31043, 34555, 34572 }, -- Thunderheart Balance
+		[674] = { 31061, 31064, 31065, 34434, 31067, 34562, 34525 }, -- Absolution Shadow
+		[675] = { 31063, 31069, 31066, 34435, 31060, 34559, 34526 }, -- Absolution Heal
+		[682] = { 31015, 31024, 31018, 34439, 31011, 34546, 34567 }, -- Skyshatter Ele
+		[684] = { 31016, 31020, 31023, 34438, 31017, 34545, 34569 }, -- Skyshatter Resto
+
+		-- Tier 6
+		[669] = { 31003, 31006, 31004, 34443, 31001, 34549, 34570 }, -- Gronnstalker (Hunter)
+		[668] = { 31027, 31030, 31028, 34448, 31026, 34558, 34575 }, -- Slayer (Rogue)
+		[672] = { 30972, 30979, 30975, 34441, 30969, 34560, 34543 }, -- Onslaught DPS
+		[673] = { 30974, 30980, 30976, 34442, 30970, 34561, 34544 }, -- Onslaught Tank
+		[670] = { 31051, 31054, 31052, 34436, 31050, 34563, 34527 }, -- Malefic (Warlock)
+		[671] = { 31056, 31059, 31057, 34447, 31055, 34557, 34574 }, -- Tempest (Mage)
+		[681] = { 30988, 30996, 30992, 34432, 30983, 34565, 34530 }, -- Lightbringer Ret
+		[676] = { 31039, 31048, 31042, 34444, 31034, 34556, 34573 }, -- Thunderheart Feral
+		[683] = { 31012, 31019, 31022, 34437, 31014, 34547, 34568 }, -- Skyshatter Enh
+
+		-- Legendaria
+		[699] = { 32837, 32838 }, -- Warglaives of Azzinoth
+
+		-- Niche (drops de mazmorra con bono numérico real en la fuente)
+		[667] = { 32946, 32945 }, -- Fists of Fury (Hyjal trash)
+		[616] = { 31749, 31750 }, -- Twin Stars (Mana Tombs)
+		[615] = { 28189, 27901 }, -- Latro's Flurry (Deadmines)
+	}
+	for setID, items in pairs(SET_ITEMS) do
+		for _, itemID in ipairs(items) do
+			SET_ITEM_MEMBERSHIP[itemID] = setID
+		end
+	end
+end
+
+-- [setID] = { [cantidadDePiezas] = { stats = {...} } o { score = N } }.
+-- `score` es un valor de puntaje YA CALCULADO (no una clave ITEM_MOD_X) --
+-- se usa cuando el bono real es un proc/efecto sin stat equivalente
+-- directo, la fuente ya hizo esa conversión (mismo criterio que
+-- PROC_ITEM_STAT_OVERRIDES). Ambos umbrales de un mismo set son
+-- acumulativos: con 4 piezas puestas, el bono de 2pc Y el de 4pc suman
+-- juntos, tal como en el juego real.
+SET_BONUS_SCORES = {
+	[559] = { [2] = { stats = { ITEM_MOD_SPELL_POWER_SHORT = 25 } } },
+	[571] = { [2] = { stats = { ITEM_MOD_SPELL_HEALING_DONE_SHORT = 35 } } },
+	[619] = { [3] = { stats = { ITEM_MOD_ATTACK_POWER_SHORT = 40 } } },
+	[552] = { [3] = { stats = { ITEM_MOD_SPELL_POWER_SHORT = 35 } } },
+	[554] = { [3] = { stats = { ITEM_MOD_MANA_REGENERATION_SHORT = 10 } } },
+	[570] = { [2] = { score = 20 } },
+	[617] = { [3] = { stats = { ITEM_MOD_AGILITY_SHORT = 20 } } },
+	[618] = { [3] = { stats = { ITEM_MOD_INTELLECT_SHORT = 20 } } },
+
+	[650] = { [2] = { score = 20 }, [4] = { stats = { ITEM_MOD_ARMOR_PENETRATION_RATING_SHORT = 40 } } },
+	[653] = { [2] = { stats = { ITEM_MOD_STRENGTH_SHORT = 20 } }, [4] = { score = 40 } },
+	[660] = { [2] = { stats = { ITEM_MOD_HIT_RATING_SHORT = 35 } }, [4] = { stats = { ITEM_MOD_ATTACK_POWER_SHORT = 20 } } },
+	[659] = { [2] = { stats = { ITEM_MOD_HIT_RATING_SHORT = 35 } }, [4] = { stats = { ITEM_MOD_ATTACK_POWER_SHORT = 30 } } },
+	[658] = { [2] = { stats = { ITEM_MOD_HIT_SPELL_RATING_SHORT = 35 } }, [4] = { stats = { ITEM_MOD_SPELL_POWER_SHORT = 30 } } },
+	[662] = { [2] = { stats = { ITEM_MOD_MANA_REGENERATION_SHORT = 15 } }, [4] = { score = 35 } },
+	[644] = { [2] = { stats = { ITEM_MOD_HIT_SPELL_RATING_SHORT = 35 } }, [4] = { score = 40 } },
+	[620] = { [2] = { score = 25 }, [4] = { stats = { ITEM_MOD_ATTACK_POWER_SHORT = 20 } } },
+	[630] = { [2] = { stats = { ITEM_MOD_MANA_REGENERATION_SHORT = 15 } }, [4] = { score = 40 } },
+	[647] = { [2] = { score = 20 }, [4] = { stats = { ITEM_MOD_SPELL_POWER_SHORT = 25 } } },
+	[637] = { [2] = { stats = { ITEM_MOD_MANA_REGENERATION_SHORT = 15 } }, [4] = { stats = { ITEM_MOD_SPELL_POWER_SHORT = 20 } } },
+	[661] = { [2] = { score = 20 }, [4] = { score = 35 } },
+	[623] = { [2] = { score = 25 }, [4] = { score = 40 } },
+
+	[655] = { [2] = { score = 30 }, [4] = { score = 45 } },
+	[654] = { [2] = { score = 25 }, [4] = { score = 50 } },
+	[624] = { [2] = { score = 30 }, [4] = { stats = { ITEM_MOD_MANA_REGENERATION_SHORT = 10 } } },
+	[625] = { [2] = { score = 35 }, [4] = { score = 50 } },
+	[626] = { [2] = { score = 25 }, [4] = { score = 40 } },
+	[651] = { [2] = { score = 30 }, [4] = { score = 60 } },
+	[621] = { [2] = { score = 80 }, [4] = { score = 50 } },
+	[640] = { [2] = { score = 30 }, [4] = { stats = { ITEM_MOD_STRENGTH_SHORT = 20 } } },
+	[638] = { [2] = { score = 20 }, [4] = { score = 40 } },
+	[641] = { [2] = { stats = { ITEM_MOD_MANA_REGENERATION_SHORT = 8 } }, [4] = { score = 45 } },
+	[631] = { [2] = { stats = { ITEM_MOD_STRENGTH_SHORT = 20 } }, [4] = { score = 50 } },
+	[633] = { [2] = { stats = { ITEM_MOD_MANA_REGENERATION_SHORT = 8 } }, [4] = { score = 45 } },
+	[632] = { [2] = { score = 25 }, [4] = { stats = { ITEM_MOD_SPELL_POWER_SHORT = 40 } } },
+	[648] = { [2] = { score = 15 }, [4] = { stats = { ITEM_MOD_SPELL_HASTE_RATING_SHORT = 35 } } },
+	[645] = { [2] = { stats = { ITEM_MOD_SPELL_POWER_SHORT = 35 } }, [4] = { score = 80 } },
+	[663] = { [2] = { score = 25 }, [4] = { score = 40 } },
+	[664] = { [2] = { score = 25 }, [4] = { score = 40 } },
+
+	[656] = { [2] = { score = 40 }, [4] = { stats = { ITEM_MOD_HASTE_RATING_SHORT = 50 } } },
+	[657] = { [2] = { score = 40 }, [4] = { score = 60 } },
+	[627] = { [2] = { score = 30 }, [4] = { score = 50 } },
+	[628] = { [2] = { score = 40 }, [4] = { score = 60 } },
+	[629] = { [2] = { score = 35 }, [4] = { score = 50 } },
+	[652] = { [2] = { score = 50 }, [4] = { stats = { ITEM_MOD_CRIT_RATING_SHORT = 35 } } },
+	[622] = { [2] = { score = 60 }, [4] = { score = 40 } },
+	[602] = { [2] = { stats = { ITEM_MOD_MANA_REGENERATION_SHORT = 10 } }, [4] = { score = 50 } },
+	[642] = { [2] = { score = 30 }, [4] = { score = 50 } },
+	[643] = { [2] = { score = 25 }, [4] = { score = 45 } },
+	[649] = { [2] = { score = 50 }, [4] = { stats = { ITEM_MOD_SPELL_CRIT_RATING_SHORT = 70 } } },
+	[646] = { [2] = { score = 60 }, [4] = { score = 55 } },
+	[665] = { [2] = { score = 25 }, [4] = { score = 40 } },
+	[666] = { [2] = { score = 25 }, [4] = { score = 40 } },
+	[634] = { [2] = { score = 25 }, [4] = { score = 45 } },
+	[635] = { [2] = { score = 30 }, [4] = { score = 50 } },
+	[636] = { [2] = { stats = { ITEM_MOD_MANA_REGENERATION_SHORT = 10 } }, [4] = { score = 50 } },
+	[677] = { [2] = { score = 40 }, [4] = { score = 100 } },
+	[678] = { [2] = { score = 30 }, [4] = { score = 90 } },
+	[674] = { [2] = { score = 40 }, [4] = { score = 100 } },
+	[675] = { [2] = { score = 35 }, [4] = { score = 100 } },
+	[682] = { [2] = { score = 40 }, [4] = { score = 90 } },
+	[684] = { [2] = { stats = { ITEM_MOD_MANA_REGENERATION_SHORT = 10 } }, [4] = { score = 85 } },
+
+	[669] = { [2] = { score = 40 }, [4] = { score = 120 } },
+	[668] = { [2] = { score = 50 }, [4] = { score = 100 } },
+	[672] = { [2] = { score = 40 }, [4] = { score = 80 } },
+	[673] = { [2] = { score = 45 }, [4] = { score = 110 } },
+	[670] = { [2] = { score = 50 }, [4] = { score = 130 } },
+	[671] = { [2] = { score = 40 }, [4] = { score = 125 } },
+	[681] = { [2] = { score = 35 }, [4] = { score = 120 } },
+	[676] = { [2] = { score = 50 }, [4] = { score = 110 } },
+	[683] = { [2] = { score = 45 }, [4] = { score = 90 } },
+
+	[699] = { [2] = { score = 500 } },
+
+	[667] = { [2] = { score = 40 } },
+	[616] = { [2] = { stats = { ITEM_MOD_HIT_SPELL_RATING_SHORT = 15, ITEM_MOD_HIT_RATING_SHORT = 15 } } },
+	[615] = { [2] = { stats = { ITEM_MOD_ATTACK_POWER_SHORT = 30 } } },
+}
+
+local function GetItemIDFromLink(itemLink)
+	local itemString = itemLink and ns.GetItemString and ns.GetItemString(itemLink)
+	return itemString and ns.GetItemID and ns.GetItemID(itemString)
+end
+
+--- Cuenta piezas equipadas por set, contando TODOS los slots de bySlot
+--- salvo `excludeSlotName` (el slot que se está por reemplazar -- no
+--- corresponde contarlo dos veces, una vez como "lo que ya tenías" y otra
+--- como parte del conteo base).
+local function BuildSetCounts(bySlot, excludeSlotName)
+	local counts = {}
+	for slotName, equipped in pairs(bySlot) do
+		if slotName ~= excludeSlotName and equipped.link then
+			local setID = SET_ITEM_MEMBERSHIP[GetItemIDFromLink(equipped.link)]
+			if setID then
+				counts[setID] = (counts[setID] or 0) + 1
+			end
+		end
+	end
+	return counts
+end
+
+--- Suma los bonos de TODOS los umbrales que `count` alcanza o supera (2pc
+--- Y 4pc si count>=4, acumulativos como en el juego real).
+local function GetSetBonusValue(setID, count, weightProfile, currentStats)
+	local thresholds = setID and SET_BONUS_SCORES[setID]
+	if not thresholds then
+		return 0
+	end
+	local total = 0
+	for threshold, bonus in pairs(thresholds) do
+		if count >= threshold then
+			total = total + (bonus.score or (bonus.stats and ns.ScoreStats(bonus.stats, weightProfile, currentStats)) or 0)
+		end
+	end
+	return total
+end
+
+--- Valor de "cuánto bono de set aporta tener esta pieza puesta en este
+--- slot", dado el conteo del resto del equipo (`counts`, ya excluye el
+--- slot en cuestión). 0 si el ítem no pertenece a ningún set.
+local function SetPieceValue(setID, counts, weightProfile, currentStats)
+	if not setID then
+		return 0
+	end
+	return GetSetBonusValue(setID, (counts[setID] or 0) + 1, weightProfile, currentStats)
+end
+
+--- Diferencia neta de bono de set al reemplazar lo que hay en `worstSlotName`
+--- (bySlot) por `candidateLink`. Si ambos pertenecen al mismo set, el
+--- conteo total no cambia (se resta una pieza y se suma otra del mismo
+--- set) y el resultado sale 0 automáticamente, sin necesitar un caso
+--- especial. Positivo = el candidato suma/completa un umbral que el ítem
+--- actual no tenía; negativo = equiparlo rompe un umbral que ya estaba
+--- activo.
+local function GetSetBonusSwapDelta(candidateLink, bySlot, worstSlotName, weightProfile, currentStats)
+	local candidateSetID = SET_ITEM_MEMBERSHIP[GetItemIDFromLink(candidateLink)]
+	local equippedLink = worstSlotName and bySlot[worstSlotName] and bySlot[worstSlotName].link
+	local equippedSetID = SET_ITEM_MEMBERSHIP[GetItemIDFromLink(equippedLink)]
+	if not candidateSetID and not equippedSetID then
+		return 0
+	end
+
+	local counts = BuildSetCounts(bySlot, worstSlotName)
+	return SetPieceValue(candidateSetID, counts, weightProfile, currentStats)
+		- SetPieceValue(equippedSetID, counts, weightProfile, currentStats)
+end
+
 --- Compara `score` contra lo que el personaje ya tiene puesto en el slot
 --- que le corresponde a `itemLink`. Devuelve:
 ---   isUpgrade: true/false, o nil si no se puede comparar (equipLoc sin
@@ -292,17 +571,23 @@ local function ComputeUpgradeInfo(itemLink, score, weightProfile, currentStats, 
 		return nil, nil
 	end
 
-	local worstEquippedScore, worstEquippedStats
+	local worstEquippedScore, worstEquippedStats, worstSlotName
 	for _, slotName in ipairs(slots) do
 		local equipped = bySlot[slotName]
 		local equippedScore = equipped and ns.ScoreStats(equipped.stats, weightProfile, currentStats) or 0
 		if not worstEquippedScore or equippedScore < worstEquippedScore then
 			worstEquippedScore = equippedScore
 			worstEquippedStats = equipped and equipped.stats or {}
+			worstSlotName = slotName
 		end
 	end
 
-	return score > worstEquippedScore, worstEquippedScore, worstEquippedStats
+	-- Bono de set: no se muestra como número aparte (misma regla que el
+	-- resto del score), solo desempata isUpgrade cuando completar/romper
+	-- un 2pc/4pc pesa más que la diferencia de stats crudos del ítem.
+	local setBonusDelta = GetSetBonusSwapDelta(itemLink, bySlot, worstSlotName, weightProfile, currentStats)
+
+	return (score + setBonusDelta) > worstEquippedScore, worstEquippedScore, worstEquippedStats
 end
 
 --- Entre los stats que el perfil activo pondera, cuál es el que más

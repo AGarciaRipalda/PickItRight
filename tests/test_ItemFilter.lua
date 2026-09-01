@@ -291,4 +291,35 @@ result = ns.EvaluateItem("dullHelm", { ITEM_MOD_INTELLECT_SHORT = 1 }, {}, equip
 assertEqual(result.isUpgrade, false, "caso 27: claramente peor que lo equipado")
 assertEqual(result.topStat, nil, "caso 27: sin mejora, no se expone topStat")
 
+-- --- Caso 29-30 ("todos, uno a uno" -- bonos de set 2pc/4pc) ------------
+-- Réplica de un caso real: Mago con una pieza de un set crafteado real
+-- (Spellstrike, itemID 24262) ya puesta en otro slot, evalúa la OTRA
+-- pieza del mismo set (itemID 24266) para el pecho. Sola, esa pieza
+-- pierde contra lo equipado (10 < 30 de Poder con Hechizos) -- pero
+-- completa el 2pc del set (+25 Poder con Hechizos, valor real portado de
+-- SharpiesGearJudge Data_Sets.lua), lo que la vuelve mejora real
+-- (10 + 25 = 35 > 30).
+ns.GetItemID = function(link)
+	return ({ spellstrikeChestCandidate = 24266, spellstrikeChestCandidate2 = 24266, spellstrikeGlovesEquipped = 24262 })[link]
+end
+
+mockItems.spellstrikeChestCandidate = { name = "Pechera Spellstrike", equipLoc = "INVTYPE_CHEST", classID = 4, subclassID = 1 }
+mockItems.spellstrikeChestCandidate2 = mockItems.spellstrikeChestCandidate
+ns.context = { class = "MAGE", role = "Caster" }
+ns.GetActiveWeightProfile = function() return { ITEM_MOD_SPELL_POWER_SHORT = 1.0 } end
+
+local setBySlot = {
+	HandsSlot = { link = "spellstrikeGlovesEquipped", stats = {} },
+	ChestSlot = { link = "oldChest", stats = { ITEM_MOD_SPELL_POWER_SHORT = 30 } },
+}
+result = ns.EvaluateItem("spellstrikeChestCandidate", { ITEM_MOD_SPELL_POWER_SHORT = 10 }, {}, setBySlot)
+assertEqual(result.isUpgrade, true, "caso 29: pierde en stats crudos pero completa un 2pc real, se vuelve mejora")
+
+-- Caso 30: mismo candidato, pero SIN la otra pieza del set equipada en
+-- ningún lado -- confirma que el bono depende de verdad del conteo de
+-- piezas, no se aplica solo porque el ítem pertenezca a un set.
+setBySlot = { ChestSlot = { link = "oldChest", stats = { ITEM_MOD_SPELL_POWER_SHORT = 30 } } }
+result = ns.EvaluateItem("spellstrikeChestCandidate2", { ITEM_MOD_SPELL_POWER_SHORT = 10 }, {}, setBySlot)
+assertEqual(result.isUpgrade, false, "caso 30: sin la otra pieza del set puesta, no hay bono que compense la diferencia de stats")
+
 print("OK: ItemFilter.lua supera la prueba de humo")
