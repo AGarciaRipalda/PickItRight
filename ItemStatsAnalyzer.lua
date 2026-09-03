@@ -119,6 +119,58 @@ local EQUIP_LINE_PATTERNS = {
 	"improves (.-) by (%d+)",
 }
 
+--[[
+DOS BUGS REALES, encontrados analizando capturas de pantalla reales que
+el usuario comparó contra AtlasLootClassic_TBCA_BIS (ítems clasificados
+para una clase/spec distinta a la que nuestro `GetItemTargetBuild`
+decía). Verificados contra SharpiesGearJudge (Parse.lua) antes de tocar
+nada, mismo criterio de siempre.
+]]
+
+--- Caso especial real ("HYBRID HEAL/DAMAGE SPLIT", verificado línea por
+--- línea contra SharpiesGearJudge Parse.lua ~308-320): algunos ítems
+--- combinan curación y daño en UNA sola oración ("Increases healing done
+--- by up to 227 and damage done by up to 76 for all magical spells and
+--- effects" -- ej. Serpentcrest Life-Staff). Ninguno de los
+--- EQUIP_LINE_PATTERNS de abajo (una sola captura por línea, corta en el
+--- primer match) puede leer los DOS números, y ni siquiera el primero
+--- ("healing done") coincide con ninguna clave literal de
+--- EQUIP_TEXT_TO_STAT (que tiene la frase larga completa) -- la línea
+--- entera quedaba sin sumar nada, dejando el ítem con solo sus stats
+--- neutros (Aguante/Intelecto/Espíritu) y sin nada que lo distinga como
+--- ítem de curación. En TBC el daño de hechizos y la curación comparten
+--- el mismo pool base (todo Poder con Hechizos también cura), así que el
+--- valor de daño se suma como Poder con Hechizos, y solo el EXCEDENTE de
+--- curación por encima de eso se suma aparte como Curación pura -- mismo
+--- modelo que usa SharpiesGearJudge, no una interpretación propia.
+local function AddHybridHealDamageStats(equipLine, stats)
+	local heal, dmg = equipLine:match("healing.-(%d+).-damage.-(%d+)")
+	if not heal then
+		return false
+	end
+	heal, dmg = tonumber(heal), tonumber(dmg)
+	stats.ITEM_MOD_SPELL_POWER_SHORT = (stats.ITEM_MOD_SPELL_POWER_SHORT or 0) + dmg
+	local bonus = heal - dmg
+	if bonus > 0 then
+		stats.ITEM_MOD_SPELL_HEALING_DONE_SHORT = (stats.ITEM_MOD_SPELL_HEALING_DONE_SHORT or 0) + bonus
+	end
+	return true
+end
+
+-- Bono de Poder de Ataque atado a forma feral ("...in Cat, Bear, Dire
+-- Bear, and Moonkin forms only" -- ej. Splintering Greatstaff of the
+-- Beast). Confirmado que incluso SharpiesGearJudge tiene la INTENCIÓN de
+-- redirigir esto (BaseStatMap["attack power in cat"] ->
+-- ITEM_MOD_FERAL_ATTACK_POWER_SHORT, Parse.lua línea 147), aunque su
+-- patrón genérico no llega a producir esa clave exacta para esta
+-- redacción de 4 formas -- confirma que la intención es real, solo que
+-- ninguna fuente existente la resuelve para esta redacción puntual. Sin
+-- esto, un bono atado a transformación se leía como Poder de Ataque
+-- UNIVERSAL, inflando el score de clases físicas que ni pueden usar el
+-- bono (no se transforman) por sobre la clase real a la que apunta el
+-- ítem.
+local FERAL_FORM_MARKERS = { "cat", "bear", "moonkin" }
+
 -- Reutiliza siempre el mismo frame (creado una vez, la primera llamada) —
 -- mismo patrón que MSC_ScannerTooltip en SharpiesGearJudge. Crear un
 -- GameTooltip nuevo por ítem desperdiciaría memoria sin ninguna ganancia.
@@ -161,11 +213,19 @@ local function AddEquipEffectStats(itemLink, stats)
 				:gsub("%s+", " ")
 		end
 		local equipLine = text and text:match("^%s*equip:%s*(.+)")
-		if equipLine then
+		if equipLine and not AddHybridHealDamageStats(equipLine, stats) then
 			for _, pattern in ipairs(EQUIP_LINE_PATTERNS) do
 				local name, value = equipLine:match(pattern)
 				if name and value then
 					local statKey = EQUIP_TEXT_TO_STAT[name]
+					if statKey == "ITEM_MOD_ATTACK_POWER_SHORT" then
+						for _, marker in ipairs(FERAL_FORM_MARKERS) do
+							if equipLine:find(marker, 1, true) then
+								statKey = "ITEM_MOD_FERAL_ATTACK_POWER_SHORT"
+								break
+							end
+						end
+					end
 					if statKey then
 						stats[statKey] = (stats[statKey] or 0) + tonumber(value)
 					end

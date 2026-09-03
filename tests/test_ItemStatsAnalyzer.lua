@@ -274,4 +274,64 @@ local plainRingKeys = 0
 for _ in pairs(plainRingResult) do plainRingKeys = plainRingKeys + 1 end
 assertEqual(plainRingKeys, 1, "caso 15: y no gana ninguna clave extra")
 
+-- --- Casos 16-18 (bugs reales, encontrados analizando capturas reales que --
+-- el usuario comparó contra AtlasLootClassic_TBCA_BIS) ---------------------
+
+-- Caso 16 ("HYBRID HEAL/DAMAGE SPLIT", verificado contra SharpiesGearJudge
+-- Parse.lua ~308-320): Serpentcrest Life-Staff, "Equip: Increases healing
+-- done by up to 227 and damage done by up to 76 for all magical spells and
+-- effects." -- antes de este fix, la línea entera quedaba sin sumar nada
+-- (ningún patrón capturaba los DOS números, y el primer nombre capturado
+-- "healing done" no coincidía con ninguna clave de EQUIP_TEXT_TO_STAT).
+local serpentcrestStaff = "item:70010:0:0:0:0:0:0:0:70:0:0"
+loadedItems[serpentcrestStaff] = true
+statsByLink[serpentcrestStaff] = { ITEM_MOD_STAMINA_SHORT = 27, ITEM_MOD_INTELLECT_SHORT = 27, ITEM_MOD_SPIRIT_SHORT = 46 }
+mockTooltipLines[serpentcrestStaff] = {
+	"Serpentcrest Life-Staff",
+	"+27 Stamina",
+	"+27 Intellect",
+	"+46 Spirit",
+	"Equip: Increases healing done by up to 227 and damage done by up to 76 for all magical spells and effects.",
+}
+local serpentcrestResult
+ns.RequestItemStats(serpentcrestStaff, function(stats) serpentcrestResult = stats end)
+assertEqual(serpentcrestResult.ITEM_MOD_SPIRIT_SHORT, 46, "caso 16: stats crudas siguen presentes")
+assertEqual(serpentcrestResult.ITEM_MOD_SPELL_POWER_SHORT, 76, "caso 16: el valor de daño (76) se suma como Poder con Hechizos (pool compartido en TBC)")
+assertEqual(serpentcrestResult.ITEM_MOD_SPELL_HEALING_DONE_SHORT, 151, "caso 16: solo el EXCEDENTE de curación (227-76=151) se suma aparte")
+
+-- Caso 17: Splintering Greatstaff of the Beast, "Equip: Increases attack
+-- power by 390 in Cat, Bear, Dire Bear, and Moonkin forms only." -- antes
+-- de este fix, se leía como Poder de Ataque UNIVERSAL (inflando el score
+-- de clases físicas que ni pueden usar el bono, no se transforman) en vez
+-- de Poder de Ataque FERAL (el stat real para bonos atados a forma).
+local splinteringGreatstaff = "item:70011:0:0:0:0:0:0:0:70:0:0"
+loadedItems[splinteringGreatstaff] = true
+statsByLink[splinteringGreatstaff] = { ITEM_MOD_STRENGTH_SHORT = 28, ITEM_MOD_AGILITY_SHORT = 28, ITEM_MOD_STAMINA_SHORT = 43 }
+mockTooltipLines[splinteringGreatstaff] = {
+	"Splintering Greatstaff of the Beast",
+	"+28 Strength",
+	"+28 Agility",
+	"+43 Stamina",
+	"Equip: Increases attack power by 390 in Cat, Bear, Dire Bear, and Moonkin forms only.",
+}
+local splinteringResult
+ns.RequestItemStats(splinteringGreatstaff, function(stats) splinteringResult = stats end)
+assertEqual(splinteringResult.ITEM_MOD_FERAL_ATTACK_POWER_SHORT, 390, "caso 17: bono atado a forma se mapea a Ataque Feral, no universal")
+assertEqual(splinteringResult.ITEM_MOD_ATTACK_POWER_SHORT, nil, "caso 17: NO debe quedar también como Poder de Ataque universal")
+
+-- Caso 18: un bono de Poder de Ataque SIN calificador de forma (el caso
+-- normal, ej. un trinket cualquiera) sigue mapeando a universal -- el
+-- redirect de forma feral es condicional, no reemplaza el mapeo normal.
+local normalAPItem = "item:70012:0:0:0:0:0:0:0:70:0:0"
+loadedItems[normalAPItem] = true
+statsByLink[normalAPItem] = {}
+mockTooltipLines[normalAPItem] = {
+	"Normal AP Trinket",
+	"Equip: Increases attack power by 100.",
+}
+local normalAPResult
+ns.RequestItemStats(normalAPItem, function(stats) normalAPResult = stats end)
+assertEqual(normalAPResult.ITEM_MOD_ATTACK_POWER_SHORT, 100, "caso 18: sin calificador de forma, sigue siendo Poder de Ataque universal")
+assertEqual(normalAPResult.ITEM_MOD_FERAL_ATTACK_POWER_SHORT, nil, "caso 18: no se redirige de más sin la palabra de forma")
+
 print("OK: ItemStatsAnalyzer.lua supera la prueba de humo")
