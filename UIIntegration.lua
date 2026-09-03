@@ -39,6 +39,40 @@ end
 
 ns.FormatScoreLine = FormatScoreLine
 
+--- Color identitario de clase de WoW (hex, sin "|c"/alfa). RAID_CLASS_COLORS
+--- es un global real del cliente, indexado por classToken en inglés
+--- (r/g/b 0-1) — confirmado en uso de producción contra SharpiesGearJudge
+--- (Interface.lua:256, MSC.GetClassColor, mismo fallback dorado para
+--- classToken desconocido). No se mantiene una tabla de colores propia:
+--- ya existe en el cliente, no hay que reinventarla.
+local function GetClassColorHex(classToken)
+	local c = (classToken and RAID_CLASS_COLORS and RAID_CLASS_COLORS[classToken]) or { r = 1, g = 0.82, b = 0 }
+	return ("%02x%02x%02x"):format(math.floor(c.r * 255), math.floor(c.g * 255), math.floor(c.b * 255))
+end
+
+--- Línea "Clase Especialización" (color de clase), agregada ARRIBA del
+--- veredicto de mejora — pedido explícito del usuario. Muestra contra qué
+--- build se evaluó el ítem, sin depender de que el jugador interprete el
+--- panel de talentos o corra /pickitright context a mano: el mismo tipo de
+--- desajuste ya causó un bug real documentado (SpecDetector.lua resolvió
+--- Arcano en vez de Frost para un Mago, ver AddonSettings.lua/CLAUDE.md) —
+--- esta línea lo hace visible en el momento, no solo con un diagnóstico
+--- manual. nil si el contexto de personaje (Fase 1) todavía no resolvió.
+local function FormatClassSpecLine()
+	local context = ns.context
+	local class = context and context.class
+	local dominantTab = context and context.dominantTab
+	local specNames = class and ns.L and ns.L.SPEC_NAMES and ns.L.SPEC_NAMES[class]
+	local specName = specNames and specNames[dominantTab]
+	if not class or not specName then
+		return nil
+	end
+	local className = (ns.L.CLASS_NAMES and ns.L.CLASS_NAMES[class]) or class
+	return ("|cff%s%s %s%s"):format(GetClassColorHex(class), className, specName, COLOR_RESET)
+end
+
+ns.FormatClassSpecLine = FormatClassSpecLine
+
 --- Nombre corto en español + en qué situación importa, para el stat que más
 --- explica un veredicto "Equípatelo" (ns.result.topStat, calculado en
 --- ItemFilter.lua/GetTopContributingStat). No pretende cubrir cada
@@ -105,6 +139,11 @@ local function AppendAnalysis(tooltip, entry)
 	if not entry then
 		tooltip:AddLine(("%sPickItRight: analizando...%s"):format(COLOR_GRAY, COLOR_RESET))
 		return
+	end
+
+	local classSpecLine = FormatClassSpecLine()
+	if classSpecLine then
+		tooltip:AddLine(classSpecLine)
 	end
 
 	local result = entry.result
