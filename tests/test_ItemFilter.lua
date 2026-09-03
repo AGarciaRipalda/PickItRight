@@ -384,4 +384,23 @@ result = ns.EvaluateItem("plateChestTarget", { ITEM_MOD_STRENGTH_SHORT = 20, ITE
 assertEqual(result.eligible, false, "caso 35: Sacerdote no puede equipar Placas, sigue siendo no elegible para él")
 assertEqual(result.targetClass, "WARRIOR", "caso 35: pero el target del ítem no depende de la elegibilidad del jugador actual")
 
+-- --- Caso 36 (bug real vía /pickitright inspect: Veteran's Silk Belt) -----
+-- "Classes: Priest, Mage, Warlock" en el tooltip excluye a Pícaro incluso
+-- cuando su proficiencia de armadura (tela) lo dejaría pasar en general.
+mockItems.restrictedCasterBelt = { name = "Cinturón Restringido", equipLoc = "INVTYPE_WAIST", classID = 4, subclassID = 1 }
+ns.GetItemClassRestriction = function() return { PRIEST = true, MAGE = true, WARLOCK = true } end
+targetClass, targetTab = ns.GetItemTargetBuild("restrictedCasterBelt", { ITEM_MOD_SPELL_POWER_SHORT = 20 })
+assertEqual(targetClass, "MAGE", "caso 36: con restricción de clase, el ganador sale de las clases PERMITIDAS")
+
+-- Réplica exacta del bug: mismo ítem, pero el perfil (mock) de Mago no
+-- pondera Poder con Hechizos -- si el filtro de restricción NO se
+-- aplicara, Guerrero (Placas descartada por armadura, pero Fuerza/AP no
+-- están en este ítem tampoco) o cualquier otra clase no listada podría
+-- colarse. Acá confirmamos explícitamente que Guerrero (NO listado en
+-- Classes:) nunca gana pese a que ns.SpecNames lo sigue teniendo.
+ns.GetItemClassRestriction = function() return { PRIEST = true, MAGE = true, WARLOCK = true } end
+targetClass = ns.GetItemTargetBuild("restrictedCasterBelt", { ITEM_MOD_STRENGTH_SHORT = 20, ITEM_MOD_ATTACK_POWER_SHORT = 20 })
+assertEqual(targetClass, nil, "caso 36b: Guerrero puntuaría alto por Fuerza/Ataque, pero la restricción de clase lo excluye -- sin ganador")
+ns.GetItemClassRestriction = nil -- deja el estado limpio para el resto de las pruebas
+
 print("OK: ItemFilter.lua supera la prueba de humo")

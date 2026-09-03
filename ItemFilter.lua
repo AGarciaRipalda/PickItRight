@@ -274,13 +274,20 @@ local function GetItemTargetBuild(itemLink, itemStats)
 		return nil
 	end
 
+	-- Bug real reportado por un usuario: un ítem con "Classes: Priest,
+	-- Mage, Warlock" en el tooltip (BoP restringido a un subconjunto de
+	-- clases) sugería Pícaro, porque el filtro de abajo solo chequea
+	-- proficiencia de armadura/arma (que un Pícaro sí cumple para tela en
+	-- general) -- ver GetItemClassRestriction en ItemStatsAnalyzer.lua.
+	local classRestriction = ns.GetItemClassRestriction and ns.GetItemClassRestriction(itemLink)
+
 	local bestClass, bestTab, bestScore
 
 	for class, specNames in pairs(ns.SpecNames) do
-		local canEquip = true
-		if classID == 2 then -- Weapon
+		local canEquip = not classRestriction or classRestriction[class] or false
+		if canEquip and classID == 2 then -- Weapon
 			canEquip = WEAPON_PROFICIENCY[class] and WEAPON_PROFICIENCY[class][subclassID] or false
-		elseif ARMOR_MATERIAL_SLOTS[itemEquipLoc] then
+		elseif canEquip and ARMOR_MATERIAL_SLOTS[itemEquipLoc] then
 			local maxTier = GetMaxArmorTier(class, 70) -- nivel 70: máximo teórico, no el del jugador
 			canEquip = maxTier ~= nil and subclassID ~= nil and subclassID <= maxTier
 		end

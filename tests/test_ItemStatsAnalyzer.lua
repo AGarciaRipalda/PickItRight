@@ -334,4 +334,53 @@ ns.RequestItemStats(normalAPItem, function(stats) normalAPResult = stats end)
 assertEqual(normalAPResult.ITEM_MOD_ATTACK_POWER_SHORT, 100, "caso 18: sin calificador de forma, sigue siendo Poder de Ataque universal")
 assertEqual(normalAPResult.ITEM_MOD_FERAL_ATTACK_POWER_SHORT, nil, "caso 18: no se redirige de más sin la palabra de forma")
 
+-- --- Casos 19-22 (bug real vía /pickitright inspect: Veteran's Silk Belt) --
+
+-- Caso 19: claves "legacy" sin sufijo _SHORT se usan como FALLBACK cuando
+-- el scanner de Equip: no encontró nada para esa clave -- Poder con
+-- Hechizos en el reporte real (sin línea "Equip:" que lo duplicara).
+local legacyKeyItem = "item:70013:0:0:0:0:0:0:0:70:0:0"
+loadedItems[legacyKeyItem] = true
+statsByLink[legacyKeyItem] = { ITEM_MOD_SPELL_POWER = 31, ITEM_MOD_STAMINA_SHORT = 39 }
+local legacyKeyResult
+ns.RequestItemStats(legacyKeyItem, function(stats) legacyKeyResult = stats end)
+assertEqual(legacyKeyResult.ITEM_MOD_SPELL_POWER_SHORT, 31, "caso 19: ITEM_MOD_SPELL_POWER (sin _SHORT) se usa como Poder con Hechizos real")
+assertEqual(legacyKeyResult.ITEM_MOD_SPELL_POWER, nil, "caso 19: la clave legacy no debe quedar duplicada")
+
+-- Caso 20: si el scanner de Equip: YA capturó el valor correcto para esa
+-- clave (Resiliencia/Crítico en el reporte real, vía línea "Equip:"
+-- duplicada), el valor legacy crudo se descarta -- sumarlo también
+-- contaría el mismo bono dos veces.
+local doubleSourceItem = "item:70014:0:0:0:0:0:0:0:70:0:0"
+loadedItems[doubleSourceItem] = true
+statsByLink[doubleSourceItem] = { ITEM_MOD_RESILIENCE_RATING = 26 }
+mockTooltipLines[doubleSourceItem] = {
+	"Veteran's Silk Belt",
+	"Equip: Improves your resilience rating by 26.",
+}
+local doubleSourceResult
+ns.RequestItemStats(doubleSourceItem, function(stats) doubleSourceResult = stats end)
+assertEqual(doubleSourceResult.ITEM_MOD_RESILIENCE_RATING_SHORT, 26, "caso 20: el valor final es 26, NO 52 (26+26) -- no se duplica")
+
+-- Caso 21: restricción "Classes: X, Y, Z" del tooltip -- Veteran's Silk
+-- Belt real, restringido a Priest/Mage/Warlock (un Pícaro no debería
+-- salir nunca como target para este ítem puntual).
+local restrictedItem = "item:70015:0:0:0:0:0:0:0:70:0:0"
+loadedItems[restrictedItem] = true
+statsByLink[restrictedItem] = {}
+mockTooltipLines[restrictedItem] = {
+	"Veteran's Silk Belt",
+	"Classes: Priest, Mage, Warlock",
+}
+local restriction = ns.GetItemClassRestriction(restrictedItem)
+assertEqual(restriction.PRIEST, true, "caso 21: Sacerdote permitido")
+assertEqual(restriction.MAGE, true, "caso 21: Mago permitido")
+assertEqual(restriction.WARLOCK, true, "caso 21: Brujo permitido")
+assertEqual(restriction.ROGUE, nil, "caso 21: Pícaro NO permitido (el bug real reportado)")
+
+-- Caso 22: ítem sin línea "Classes:" (el caso normal) -> sin restricción.
+local unrestrictedItem = "item:70016:0:0:0:0:0:0:0:70:0:0"
+mockTooltipLines[unrestrictedItem] = { "Ítem Normal", "+10 Stamina" }
+assertEqual(ns.GetItemClassRestriction(unrestrictedItem), nil, "caso 22: sin línea 'Classes:', sin restricción (nil, no bloquea de más)")
+
 print("OK: ItemStatsAnalyzer.lua supera la prueba de humo")

@@ -236,6 +236,65 @@ local function AddEquipEffectStats(itemLink, stats)
 	end
 end
 
+--[[
+RESTRICCIÓN "Classes: X, Y, Z" — bug real reportado por un usuario:
+Veteran's Silk Belt (tooltip real: "Classes: Priest, Mage, Warlock")
+salía "Pícaro Sutileza" en GetItemTargetBuild (ItemFilter.lua). Ese
+filtro solo chequea proficiencia de armadura/arma (un Pícaro SÍ puede
+vestir tela en general) -- no tiene forma de ver esta restricción
+puntual del ítem, porque GetItemInfo no la expone numéricamente, solo
+aparece como esta línea de tooltip. Mismo mecanismo de escaneo que
+AddEquipEffectStats (GameTooltip invisible reutilizable), en una pasada
+aparte para no acoplar el signature de ExtractStats/RequestItemStats --
+se llama solo desde GetItemTargetBuild (fase de análisis, no en el
+hover), así que el costo extra de un segundo SetHyperlink no pega en el
+camino caliente.
+]]
+local CLASS_DISPLAY_NAME_TO_TOKEN = {
+	["warrior"] = "WARRIOR", ["paladin"] = "PALADIN", ["hunter"] = "HUNTER",
+	["rogue"] = "ROGUE", ["priest"] = "PRIEST", ["shaman"] = "SHAMAN",
+	["mage"] = "MAGE", ["warlock"] = "WARLOCK", ["druid"] = "DRUID",
+}
+
+--- Devuelve un set {classToken=true, ...} con las clases permitidas si el
+--- tooltip de `itemLink` trae una línea "Classes: X, Y, Z", o nil si el
+--- ítem no tiene esa restricción (el caso normal, la gran mayoría de
+--- ítems). Cliente en inglés únicamente, mismo límite que
+--- AddEquipEffectStats -- en otro idioma no encuentra la línea y
+--- degrada con gracia a "sin restricción" (no bloquea de más).
+local function GetItemClassRestriction(itemLink)
+	scanTooltip = scanTooltip or CreateFrame("GameTooltip", "PickItRightScanTooltip", nil, "GameTooltipTemplate")
+	scanTooltip:SetOwner(WorldFrame, "ANCHOR_NONE")
+	scanTooltip:ClearLines()
+
+	if not pcall(scanTooltip.SetHyperlink, scanTooltip, itemLink) then
+		return nil
+	end
+
+	for i = 2, scanTooltip:NumLines() do
+		local fontString = _G["PickItRightScanTooltipTextLeft" .. i]
+		local text = fontString and fontString:GetText()
+		if text then
+			text = text:lower():gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+			local classList = text:match("^classes:%s*(.+)$")
+			if classList then
+				local allowed = {}
+				for name in classList:gmatch("[^,]+") do
+					name = name:match("^%s*(.-)%s*$")
+					local token = CLASS_DISPLAY_NAME_TO_TOKEN[name]
+					if token then
+						allowed[token] = true
+					end
+				end
+				return next(allowed) and allowed or nil
+			end
+		end
+	end
+	return nil
+end
+
+ns.GetItemClassRestriction = GetItemClassRestriction
+
 -- Bug real de GetItemStats() en este cliente: el valor de Armadura base del
 -- ítem viene bajo la clave literal "RESISTANCE0_NAME" (índice de escuela 0 =
 -- Física/Armadura en el enum interno de WoW), no bajo ITEM_MOD_ARMOR_SHORT.
@@ -391,6 +450,43 @@ local function NormalizeArmorKey(stats)
 	end
 end
 
+-- Bug real reportado por un usuario vía /pickitright inspect (Veteran's
+-- Silk Belt, ítem PvP con Resiliencia nativa): GetItemStats() en este
+-- cliente devuelve Poder con Hechizos, Resiliencia y Crítico de Hechizos
+-- bajo claves SIN el sufijo "_SHORT" (y, para crítico, con el orden de
+-- palabras invertido: CRIT_SPELL en vez de SPELL_CRIT, el orden real de
+-- TBC verificado en la Fase 3 contra SharpiesGearJudge) -- confirmado con
+-- datos reales del cliente, no una suposición. Sin este remap esos 3
+-- stats son invisibles para el motor de pesos, que solo reconoce las
+-- claves _SHORT.
+--
+-- SOLO se usa como FALLBACK, no se suma ciegamente: la mayoría de estos
+-- ítems también tienen una línea "Equip:" duplicando el mismo bono en
+-- texto (que AddEquipEffectStats ya captura bien bajo la clave _SHORT
+-- correcta, confirmado en el mismo reporte real para Resiliencia y
+-- Crítico) -- sumar el valor crudo ADEMÁS del de Equip: contaría el mismo
+-- bono dos veces. Por eso corre DESPUÉS de AddEquipEffectStats: si la
+-- clave _SHORT ya tiene algo (vino del scanner de Equip:), el valor
+-- legacy se descarta; si sigue vacía (el caso real de Poder con Hechizos
+-- en el reporte, sin red de seguridad hasta ahora), se usa el crudo.
+local LEGACY_STAT_KEY_ALIASES = {
+	ITEM_MOD_CRIT_SPELL_RATING = "ITEM_MOD_SPELL_CRIT_RATING_SHORT",
+	ITEM_MOD_RESILIENCE_RATING = "ITEM_MOD_RESILIENCE_RATING_SHORT",
+	ITEM_MOD_SPELL_POWER = "ITEM_MOD_SPELL_POWER_SHORT",
+}
+
+local function NormalizeLegacyStatKeys(stats)
+	for legacyKey, realKey in pairs(LEGACY_STAT_KEY_ALIASES) do
+		local value = stats[legacyKey]
+		if value then
+			if not stats[realKey] then
+				stats[realKey] = value
+			end
+			stats[legacyKey] = nil
+		end
+	end
+end
+
 -- GetItemStats devuelve una tabla plana {ITEM_MOD_X = valor} para los
 -- stats crudos del ítem; AddEquipEffectStats suma encima los bonos de
 -- "Equip: X" que GetItemStats no ve (ver el comentario grande arriba).
@@ -398,6 +494,7 @@ local function ExtractStats(itemLink)
 	local stats = GetItemStats(itemLink) or {}
 	NormalizeArmorKey(stats)
 	AddEquipEffectStats(itemLink, stats)
+	NormalizeLegacyStatKeys(stats)
 	AddProcItemStats(itemLink, stats)
 	return stats
 end
