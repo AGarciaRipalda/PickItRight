@@ -228,6 +228,91 @@ end
 
 ns.IsEligible = IsEligible
 
+--[[
+CLASE/SPEC OBJETIVO DEL ÍTEM — distinto de "es mejora para VOS". Pedido
+explícito del usuario, corrigiendo el alcance de la primera versión de
+esta línea: esa mostraba la clase/spec DEL JUGADOR (`ns.context`, dato
+que ya tiene mirando su panel de talentos), no para qué build está
+pensado el ÍTEM en cuestión — lo que sí es información nueva.
+
+TBC no tiene un "target spec" declarado por ítem (eso es de Retail).
+Mecanismo: puntúa `itemStats` contra el perfil de Fase 1 (WEIGHT_PROFILES,
+StatScorer.lua) de CADA clase/spec que en principio podría llegar a
+equiparlo — mismo filtro grueso de proficiencia de armadura/arma que
+IsEligible, pero SIN el gate de nivel (acá importa el máximo teórico de
+la clase a nivel 70, no el nivel actual del personaje: un ítem de Plate
+sigue "orientado a Guerrero/Paladín" aunque el jugador todavía no
+entrene Plate) — y se queda con el que puntúa más alto, normalizado por
+la suma de pesos de ese perfil (`score / weightSum`) para no favorecer
+sistemáticamente a los perfiles cuyos números de peso son más altos en
+general (ej. Pícaro pesa todo ~2x más que Guerrero en la fuente,
+comparar el score crudo sin normalizar sesgaría todo hacia Pícaro).
+
+SOLO Fase 1: es la única con cobertura real de las 27 combinaciones
+clase/spec (ver StatScorer.lua) — usar la fase de contenido activa del
+jugador dejaría sin comparar a cualquier clase/spec sin datos para esa
+fase todavía, lo que rompería la comparación cruzada entre clases.
+
+Limitación conocida, aceptada a propósito: es una inferencia sobre datos
+reales ya sourced (los mismos WEIGHT_PROFILES de SharpiesGearJudge/Icy
+Veins), no una clasificación oficial del juego. Un ítem genuinamente
+multi-clase (ej. solo Aguante + Crítico, sin nada de casteo/curación)
+puede terminar mostrando un ganador entre varios candidatos casi
+empatados — no hay forma de expresar "esto sirve para varias specs por
+igual" con un solo resultado, y agregar eso sería una fase aparte.
+]]
+local function GetItemTargetBuild(itemLink, itemStats)
+	if not itemStats or not next(itemStats) then
+		return nil
+	end
+	if not ns.SpecNames or not ns.WeightProfiles or not ns.ScoreStats then
+		return nil
+	end
+
+	local _, _, _, _, _, _, _, _, itemEquipLoc, _, _, classID, subclassID = GetItemInfo(itemLink)
+	if not itemEquipLoc then
+		return nil
+	end
+
+	local bestClass, bestTab, bestScore
+
+	for class, specNames in pairs(ns.SpecNames) do
+		local canEquip = true
+		if classID == 2 then -- Weapon
+			canEquip = WEAPON_PROFICIENCY[class] and WEAPON_PROFICIENCY[class][subclassID] or false
+		elseif ARMOR_MATERIAL_SLOTS[itemEquipLoc] then
+			local maxTier = GetMaxArmorTier(class, 70) -- nivel 70: máximo teórico, no el del jugador
+			canEquip = maxTier ~= nil and subclassID ~= nil and subclassID <= maxTier
+		end
+
+		if canEquip then
+			for tabIndex, specName in ipairs(specNames) do
+				local profile = ns.WeightProfiles[class] and ns.WeightProfiles[class][specName] and ns.WeightProfiles[class][specName][1]
+				if profile then
+					local weightSum = 0
+					for _, weight in pairs(profile) do
+						weightSum = weightSum + weight
+					end
+					if weightSum > 0 then
+						local score = ns.ScoreStats(itemStats, profile) / weightSum
+						if not bestScore or score > bestScore then
+							bestClass, bestTab, bestScore = class, tabIndex, score
+						end
+					end
+				end
+			end
+		end
+	end
+
+	if not bestScore or bestScore <= 0 then
+		return nil
+	end
+
+	return bestClass, bestTab
+end
+
+ns.GetItemTargetBuild = GetItemTargetBuild
+
 -- equipLoc -> nombre(s) de slot de inventario, para saber contra qué
 -- comparar el score del candidato. Anillos/Trinkets/Armas (equipLoc
 -- ambiguo, dos slots posibles) listan ambos: el candidato compite contra
@@ -702,16 +787,20 @@ local function EvaluateItem(itemLink, itemStats, currentStats, bySlot)
 		return cached
 	end
 
+	-- Independiente de la elegibilidad del jugador actual: es sobre el
+	-- ítem, no sobre si ESTE personaje puede usarlo.
+	local targetClass, targetTab = GetItemTargetBuild(itemLink, itemStats)
+
 	local eligible, reason = IsEligible(itemLink, itemStats)
 	local result
 	if not eligible then
-		result = { eligible = false, reason = reason, score = nil, isUpgrade = nil, equippedScore = nil, topStat = nil }
+		result = { eligible = false, reason = reason, score = nil, isUpgrade = nil, equippedScore = nil, topStat = nil, targetClass = targetClass, targetTab = targetTab }
 	else
 		local weightProfile = ns.GetActiveWeightProfile()
 		local score = ns.ScoreStats(itemStats, weightProfile, currentStats)
 		local isUpgrade, equippedScore, equippedStats = ComputeUpgradeInfo(itemLink, score, weightProfile, currentStats, bySlot)
 		local topStat = isUpgrade and GetTopContributingStat(itemStats, equippedStats, weightProfile) or nil
-		result = { eligible = true, reason = nil, score = score, isUpgrade = isUpgrade, equippedScore = equippedScore, topStat = topStat }
+		result = { eligible = true, reason = nil, score = score, isUpgrade = isUpgrade, equippedScore = equippedScore, topStat = topStat, targetClass = targetClass, targetTab = targetTab }
 	end
 
 	if reason ~= REASON_NOT_LOADED then

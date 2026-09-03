@@ -322,4 +322,66 @@ setBySlot = { ChestSlot = { link = "oldChest", stats = { ITEM_MOD_SPELL_POWER_SH
 result = ns.EvaluateItem("spellstrikeChestCandidate2", { ITEM_MOD_SPELL_POWER_SHORT = 10 }, {}, setBySlot)
 assertEqual(result.isUpgrade, false, "caso 30: sin la otra pieza del set puesta, no hay bono que compense la diferencia de stats")
 
+-- --- Casos 31-35 (pedido explícito del usuario): GetItemTargetBuild -----
+-- Corrige el alcance de la línea "Clase Especialización": debe decir para
+-- qué build está pensado el ÍTEM, no cuál es la clase/spec del jugador.
+-- Perfiles chicos (no los reales de StatScorer.lua) para aislar la lógica
+-- de ItemFilter.lua sin depender del archivo real.
+ns.SpecNames = {
+	MAGE = { "Arcane", "Fire", "Frost" },
+	WARRIOR = { "Arms", "Fury", "Protection" },
+}
+ns.WeightProfiles = {
+	MAGE = {
+		Arcane = { [1] = { ITEM_MOD_SPELL_POWER_SHORT = 1.0 } },
+		Fire = { [1] = { ITEM_MOD_SPELL_POWER_SHORT = 1.0, ITEM_MOD_SPELL_CRIT_RATING_SHORT = 1.5 } },
+		Frost = { [1] = { ITEM_MOD_SPELL_POWER_SHORT = 1.0, ITEM_MOD_FROST_DAMAGE_SHORT = 1.0 } },
+	},
+	WARRIOR = {
+		Arms = { [1] = { ITEM_MOD_STRENGTH_SHORT = 1.0, ITEM_MOD_ATTACK_POWER_SHORT = 1.0 } },
+		Fury = { [1] = { ITEM_MOD_STRENGTH_SHORT = 1.0 } },
+		Protection = { [1] = { ITEM_MOD_STAMINA_SHORT = 1.0 } },
+	},
+}
+
+-- Caso 31: pecho de tela con Poder con Hechizos -> objetivo Mago (Arcano,
+-- el perfil con el score normalizado más alto: 20/1.0 = 20, contra
+-- 35/2.5 = 14 de Fuego). Guerrero queda con score 0 (ningún perfil suyo
+-- pondera Poder con Hechizos), nunca gana pese a poder "equipar" tela.
+mockItems.casterChest = { name = "Túnica Objetivo", equipLoc = "INVTYPE_CHEST", classID = 4, subclassID = 1 }
+local targetClass, targetTab = ns.GetItemTargetBuild("casterChest", { ITEM_MOD_SPELL_POWER_SHORT = 20 })
+assertEqual(targetClass, "MAGE", "caso 31: ítem de Poder con Hechizos apunta a Mago, no a Guerrero")
+assertEqual(targetTab, 1, "caso 31: dentro de Mago, Arcano gana por score normalizado más alto")
+
+-- Caso 32: varita (arma no entrenada para Guerrero, WEAPON_PROFICIENCY
+-- real) con SOLO Fuerza -- sin el filtro de proficiencia, Guerrero Furia
+-- ganaría (score normalizado 20 contra 0 de cualquier perfil de Mago).
+-- Con el filtro, Guerrero queda afuera antes de puntuar -- ningún perfil
+-- de Mago pondera Fuerza, así que no hay ganador.
+mockItems.wandStrength = { name = "Varita Rara", equipLoc = "INVTYPE_RANGEDRIGHT", classID = 2, subclassID = 19 }
+assertEqual(ns.GetItemTargetBuild("wandStrength", { ITEM_MOD_STRENGTH_SHORT = 20 }), nil,
+	"caso 32: el filtro de proficiencia de arma excluye a Guerrero de una varita, y ningún perfil de Mago pondera Fuerza")
+
+-- Caso 33: pecho de Placas con Fuerza+Poder de Ataque -> objetivo Guerrero
+-- (Mago queda afuera por proficiencia de armadura: máximo Cloth a nivel
+-- 70, Placas no entra). Empate Armas/Furia (ambos normalizan a 20) se
+-- resuelve por orden de pestaña -- Armas es la [1].
+mockItems.plateChestTarget = { name = "Pechera de Placas Objetivo", equipLoc = "INVTYPE_CHEST", classID = 4, subclassID = 4 }
+targetClass, targetTab = ns.GetItemTargetBuild("plateChestTarget", { ITEM_MOD_STRENGTH_SHORT = 20, ITEM_MOD_ATTACK_POWER_SHORT = 20 })
+assertEqual(targetClass, "WARRIOR", "caso 33: ítem de Fuerza/Poder de Ataque en Placas apunta a Guerrero")
+assertEqual(targetTab, 1, "caso 33: empate Armas/Furia se resuelve a favor del primero encontrado (Armas)")
+
+-- Caso 34: ítem sin stats -> sin build objetivo (no hay nada que comparar).
+assertEqual(ns.GetItemTargetBuild("plateChestTarget", {}), nil, "caso 34: sin stats no hay build objetivo que inferir")
+
+-- Caso 35 (integración vía EvaluateItem): el target del ÍTEM es
+-- independiente de si ESTE jugador puede usarlo -- un Sacerdote no puede
+-- equipar Placas (eligible=false), pero el ítem sigue "orientado a
+-- Guerrero" para cualquiera que lo mire.
+ns.context = { class = "PRIEST", role = "Healer" }
+ns.GetActiveWeightProfile = function() return { ITEM_MOD_SPIRIT_SHORT = 1.0 } end
+result = ns.EvaluateItem("plateChestTarget", { ITEM_MOD_STRENGTH_SHORT = 20, ITEM_MOD_ATTACK_POWER_SHORT = 20 })
+assertEqual(result.eligible, false, "caso 35: Sacerdote no puede equipar Placas, sigue siendo no elegible para él")
+assertEqual(result.targetClass, "WARRIOR", "caso 35: pero el target del ítem no depende de la elegibilidad del jugador actual")
+
 print("OK: ItemFilter.lua supera la prueba de humo")

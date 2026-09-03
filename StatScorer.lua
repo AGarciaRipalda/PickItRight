@@ -716,6 +716,13 @@ local SPEC_NAMES = {
 	DRUID = { "Balance", "Feral", "Restoration" },
 }
 
+-- Compartido con ItemFilter.lua (GetItemTargetBuild): necesita recorrer
+-- [claseToken][índice de árbol] -> nombre de spec en inglés para poder
+-- indexar WEIGHT_PROFILES de CUALQUIER clase, no solo la del jugador
+-- actual (a diferencia de GetActiveWeightProfile, que solo resuelve
+-- ns.context).
+ns.SpecNames = SPEC_NAMES
+
 --- Perfil de pesos activo para el personaje actual, según ns.context
 --- (clase + árbol dominante, Fase 1) y la fase de contenido configurada.
 --- nil si no hay perfil cargado para esa combinación todavía.

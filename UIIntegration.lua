@@ -51,19 +51,19 @@ local function GetClassColorHex(classToken)
 end
 
 --- Línea "Clase Especialización" (color de clase), agregada ARRIBA del
---- veredicto de mejora — pedido explícito del usuario. Muestra contra qué
---- build se evaluó el ítem, sin depender de que el jugador interprete el
---- panel de talentos o corra /pickitright context a mano: el mismo tipo de
---- desajuste ya causó un bug real documentado (SpecDetector.lua resolvió
---- Arcano en vez de Frost para un Mago, ver AddonSettings.lua/CLAUDE.md) —
---- esta línea lo hace visible en el momento, no solo con un diagnóstico
---- manual. nil si el contexto de personaje (Fase 1) todavía no resolvió.
-local function FormatClassSpecLine()
-	local context = ns.context
-	local class = context and context.class
-	local dominantTab = context and context.dominantTab
+--- veredicto de mejora — pedido explícito del usuario. Muestra para qué
+--- build está pensado el ÍTEM (result.targetClass/targetTab, calculado en
+--- ItemFilter.lua/GetItemTargetBuild puntuando sus stats contra el perfil
+--- de Fase 1 de cada clase/spec que podría equiparlo), NO la clase/spec
+--- del jugador actual — corrección explícita sobre la primera versión de
+--- esta línea, que mostraba ns.context (dato que el jugador ya tiene
+--- mirando su panel de talentos). nil si el ítem no tiene ningún stat que
+--- encaje con ningún perfil (ver la limitación documentada en
+--- GetItemTargetBuild).
+local function FormatTargetBuildLine(result)
+	local class = result and result.targetClass
 	local specNames = class and ns.L and ns.L.SPEC_NAMES and ns.L.SPEC_NAMES[class]
-	local specName = specNames and specNames[dominantTab]
+	local specName = specNames and specNames[result.targetTab]
 	if not class or not specName then
 		return nil
 	end
@@ -71,7 +71,7 @@ local function FormatClassSpecLine()
 	return ("|cff%s%s %s%s"):format(GetClassColorHex(class), className, specName, COLOR_RESET)
 end
 
-ns.FormatClassSpecLine = FormatClassSpecLine
+ns.FormatTargetBuildLine = FormatTargetBuildLine
 
 --- Nombre corto en español + en qué situación importa, para el stat que más
 --- explica un veredicto "Equípatelo" (ns.result.topStat, calculado en
@@ -141,12 +141,13 @@ local function AppendAnalysis(tooltip, entry)
 		return
 	end
 
-	local classSpecLine = FormatClassSpecLine()
-	if classSpecLine then
-		tooltip:AddLine(classSpecLine)
+	local result = entry.result
+
+	local targetBuildLine = FormatTargetBuildLine(result)
+	if targetBuildLine then
+		tooltip:AddLine(targetBuildLine)
 	end
 
-	local result = entry.result
 	if not result.eligible then
 		tooltip:AddLine(("%s%s%s"):format(COLOR_RED, result.reason, COLOR_RESET))
 		return

@@ -98,39 +98,45 @@ assertEqual(ns.FormatContextLine({ isUpgrade = true, topStat = nil }), nil,
 assertEqual(ns.FormatContextLine({ isUpgrade = true, topStat = "ITEM_MOD_STAT_INVENTADO" }), nil,
 	"topStat sin mapear en STAT_CONTEXT, no hay segunda línea (no inventa texto)")
 
--- --- FormatClassSpecLine: línea "Clase Especialización" arriba del veredicto ---
+-- --- FormatTargetBuildLine: "Clase Especialización" arriba del veredicto ---
+-- Corrige el alcance de la primera versión: debe decir para qué build está
+-- pensado el ÍTEM (result.targetClass/targetTab, calculado en
+-- ItemFilter.lua/GetItemTargetBuild), NO la clase/spec del jugador actual
+-- (ns.context) -- pedido explícito del usuario tras la primera entrega.
 
-assertEqual(ns.FormatClassSpecLine(), nil, "sin ns.context todavía (Fase 1 no resolvió), no hay línea")
-
-ns.context = { class = "MAGE", dominantTab = 2 } -- Fuego
 ns.L = { CLASS_NAMES = { MAGE = "Mago" }, SPEC_NAMES = { MAGE = { "Arcano", "Fuego", "Escarcha" } } }
-local classSpecLine = ns.FormatClassSpecLine()
-assert(classSpecLine:find("Mago Fuego"), "línea de clase/spec: nombra clase y especialización en español")
+
+assertEqual(ns.FormatTargetBuildLine(nil), nil, "sin resultado, no hay línea")
+assertEqual(ns.FormatTargetBuildLine({}), nil, "ítem sin target inferido (targetClass=nil), no hay línea")
+
+local targetLine = ns.FormatTargetBuildLine({ targetClass = "MAGE", targetTab = 2 }) -- Fuego
+assert(targetLine:find("Mago Fuego"), "línea de target: nombra clase y especialización en español")
 -- r=0.41,g=0.8,b=0.94 -> floor(104.55)=68, floor(204)=cc, floor(239.7)=ef
-assert(classSpecLine:find("|cff68ccef", 1, true), "línea de clase/spec: usa el color real de RAID_CLASS_COLORS.MAGE")
+assert(targetLine:find("|cff68ccef", 1, true), "línea de target: usa el color real de RAID_CLASS_COLORS.MAGE")
 
-ns.context = { class = "DEATHKNIGHT", dominantTab = 1 } -- clase sin traducción mapeada
-assertEqual(ns.FormatClassSpecLine(), nil, "clase sin SPEC_NAMES mapeado, no hay línea (no rompe, no inventa texto)")
+assertEqual(ns.FormatTargetBuildLine({ targetClass = "DEATHKNIGHT", targetTab = 1 }), nil,
+	"clase sin SPEC_NAMES mapeado, no hay línea (no rompe, no inventa texto)")
 
--- Integración completa: la línea aparece EN el tooltip, arriba del veredicto.
-ns.context = { class = "MAGE", dominantTab = 2 }
+-- Integración completa: la línea aparece EN el tooltip, arriba del veredicto,
+-- usando el target del ÍTEM (no ns.context, que ni siquiera está seteado acá).
 mockLootLinks[5] = "item:5"
-mockLootResults["item:5"] = { result = { eligible = true, isUpgrade = true, score = 9 } }
-local linesBeforeClassSpec = #GameTooltip.lines
+mockLootResults["item:5"] = { result = { eligible = true, isUpgrade = true, score = 9, targetClass = "MAGE", targetTab = 2 } }
+local linesBeforeTarget = #GameTooltip.lines
 GameTooltip:SetLootItem(5)
-assertEqual(#GameTooltip.lines, linesBeforeClassSpec + 2, "loot: agrega la línea de clase/spec MÁS el veredicto")
-assert(GameTooltip.lines[#GameTooltip.lines - 1]:find("Mago Fuego"), "loot: la línea de clase/spec queda ARRIBA del veredicto")
+assertEqual(#GameTooltip.lines, linesBeforeTarget + 2, "loot: agrega la línea de target MÁS el veredicto")
+assert(GameTooltip.lines[#GameTooltip.lines - 1]:find("Mago Fuego"), "loot: la línea de target queda ARRIBA del veredicto")
 assert(lastLine():find("Equípatelo"), "loot: el veredicto sigue siendo la última línea agregada")
 
--- También aparece cuando el ítem fue rechazado (contexto útil en ambos casos).
+-- También aparece cuando el ítem fue rechazado para ESTE jugador -- el
+-- target del ítem no depende de si el jugador actual puede usarlo.
 mockLootLinks[6] = "item:6"
-mockLootResults["item:6"] = { result = { eligible = false, reason = "Tipo de armadura incorrecto" } }
+mockLootResults["item:6"] = { result = { eligible = false, reason = "Tipo de armadura incorrecto", targetClass = "MAGE", targetTab = 2 } }
 local linesBeforeRejected = #GameTooltip.lines
 GameTooltip:SetLootItem(6)
-assertEqual(#GameTooltip.lines, linesBeforeRejected + 2, "loot rechazado: también agrega la línea de clase/spec")
-assert(GameTooltip.lines[#GameTooltip.lines - 1]:find("Mago Fuego"), "loot rechazado: línea de clase/spec arriba del motivo de rechazo")
+assertEqual(#GameTooltip.lines, linesBeforeRejected + 2, "loot rechazado: también agrega la línea de target")
+assert(GameTooltip.lines[#GameTooltip.lines - 1]:find("Mago Fuego"), "loot rechazado: línea de target arriba del motivo de rechazo")
 
-ns.context = nil -- deja el estado limpio para el resto de las pruebas
+ns.L = nil -- deja el estado limpio para el resto de las pruebas
 
 -- --- Hook de la ventana de loot (SetLootItem) -----------------------------
 
